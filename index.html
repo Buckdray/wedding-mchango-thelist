@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Mchango — Arnold & Wedding Fund Command Center</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+:root{
+  --ink:#252A34; --deep:#252A34; --teal:#08D9D6; --aqua:#08D9D6; --aqua-soft:#D6F7F6;
+  --coral:#FF2E63; --coral-soft:#FFE0E8; --butter:#FF2E63; --butter-soft:#FFE0E8;
+  --cream:#EAEAEA; --card:#FFFFFF; --line:#DADADA; --muted:#8A9199; --gold:#FF2E63;
+  --shadow:0 1px 3px rgba(37,42,52,.08),0 6px 24px rgba(37,42,52,.07);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:var(--cream);color:var(--ink);line-height:1.5}
+h1,h2,h3{font-weight:600;letter-spacing:-.01em}
+.hidden{display:none!important}
+button{font-family:inherit;cursor:pointer;border:none;background:none}
+input,select{font-family:inherit}
+<style>
+/* layout */
+.app{display:flex;min-height:100vh}
+.sidebar{width:230px;background:#252A34;color:#EAF6F4;flex-shrink:0;display:flex;flex-direction:column;position:sticky;top:0;height:100vh;transition:width .2s}
+.sidebar.collapsed{width:64px}
+.sb-brand{padding:20px 18px;display:flex;align-items:center;gap:11px;border-bottom:1px solid rgba(255,255,255,.08)}
+.sb-logo{width:34px;height:34px;border-radius:9px;background:#08D9D6;display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--deep);flex-shrink:0;font-size:15px}
+.sb-brand-txt{font-size:14px;font-weight:600;line-height:1.2;white-space:nowrap;overflow:hidden}
+.sb-brand-txt small{display:block;font-size:11px;color:#08D9D6;font-weight:400}
+.sidebar.collapsed .sb-brand-txt,.sidebar.collapsed .nav-txt,.sidebar.collapsed .sb-foot{display:none}
+.nav{flex:1;padding:12px 10px;display:flex;flex-direction:column;gap:2px;overflow-y:auto}
+.nav-item{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:9px;color:#CFE9E6;font-size:13.5px;transition:background .15s;white-space:nowrap;width:100%;text-align:left}
+.nav-item:hover{background:rgba(255,255,255,.07)}
+.nav-item.active{background:#08D9D6;color:#252A34;font-weight:600}
+.nav-ico{width:20px;text-align:center;flex-shrink:0;font-size:15px}
+.sb-foot{padding:14px 18px;border-top:1px solid rgba(255,255,255,.08);font-size:11px;color:#08D9D6}
+.main{flex:1;min-width:0;display:flex;flex-direction:column}
+.topbar{background:var(--card);border-bottom:1px solid var(--line);padding:13px 26px;display:flex;align-items:center;gap:16px;position:sticky;top:0;z-index:20}
+.burger{font-size:19px;color:var(--deep);padding:4px 8px;border-radius:7px}
+.burger:hover{background:var(--cream)}
+.topbar h2{font-size:16px;flex:1}
+.pill{font-size:11.5px;padding:4px 11px;border-radius:20px;background:var(--aqua-soft);color:var(--deep);font-weight:600}
+.who{font-size:12.5px;color:var(--muted);display:flex;align-items:center;gap:9px}
+.who b{color:var(--ink)}
+.btn{padding:8px 15px;border-radius:9px;font-size:13px;font-weight:600;transition:all .15s;border:1px solid transparent}
+.btn-primary{background:#252A34;color:#fff}
+.btn-primary:hover{background:#08D9D6;color:#252A34}
+.btn-ghost{background:var(--card);border-color:var(--line);color:var(--ink)}
+.btn-ghost:hover{border-color:var(--teal);color:var(--teal)}
+.btn-sm{padding:5px 10px;font-size:12px}
+.content{padding:24px 26px;flex:1;max-width:1240px;width:100%}
+/* KPI cards */
+.kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:22px}
+.kpi{background:var(--card);border-radius:15px;padding:17px 19px;box-shadow:var(--shadow);border:1px solid var(--line);position:relative;overflow:hidden}
+.kpi::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--accent,var(--teal))}
+.kpi.k-teal{--accent:#08D9D6} .kpi.k-coral{--accent:#FF2E63} .kpi.k-butter{--accent:#FF2E63} .kpi.k-deep{--accent:#252A34}
+.kpi-lbl{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em}
+.kpi-val{font-size:27px;font-weight:700;margin:5px 0 2px;letter-spacing:-.02em}
+.kpi-sub{font-size:11.5px;color:var(--muted)}
+.kpi-sub.pos{color:var(--teal)} .kpi-sub.neg{color:var(--coral)}
+/* panels */
+.panel{background:var(--card);border-radius:15px;padding:19px 21px;box-shadow:var(--shadow);border:1px solid var(--line);margin-bottom:18px}
+.panel-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:15px}
+.panel-h h3{font-size:15px}
+.panel-h .sub{font-size:12px;color:var(--muted);font-weight:400}
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+@media(max-width:820px){.grid-2{grid-template-columns:1fr}}
+.chart-wrap{position:relative;height:260px}
+.chart-wrap.sm{height:210px}
+/* table */
+.tbl{width:100%;border-collapse:collapse;font-size:13px}
+.tbl th{text-align:left;padding:9px 11px;color:var(--muted);font-weight:600;font-size:11.5px;text-transform:uppercase;letter-spacing:.03em;border-bottom:1px solid var(--line);cursor:pointer;white-space:nowrap}
+.tbl th:hover{color:var(--teal)}
+.tbl td{padding:9px 11px;border-bottom:1px solid #F3ECDB;vertical-align:middle}
+.tbl tr:hover td{background:var(--cream)}
+.tbl .num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.tag{font-size:11px;padding:2px 9px;border-radius:12px;font-weight:600;white-space:nowrap;display:inline-block}
+.tag-paid{background:var(--aqua-soft);color:var(--deep)}
+.tag-partial{background:var(--coral-soft);color:#9E4A28}
+.tag-pledged{background:var(--butter-soft);color:#8A6D18}
+.tag-none{background:#F0F0EC;color:#888}
+.tag-cat{background:#EEF6F5;color:var(--deep);font-size:10.5px}
+.controls{display:flex;flex-wrap:wrap;gap:9px;margin-bottom:15px;align-items:center}
+.controls input,.controls select{padding:8px 12px;border:1px solid var(--line);border-radius:9px;font-size:13px;background:var(--card);color:var(--ink)}
+.controls input:focus,.controls select:focus{outline:none;border-color:var(--teal)}
+.search{flex:1;min-width:180px}
+/* progress */
+.prog{height:11px;border-radius:8px;background:#EDE3CE;overflow:hidden;display:flex;margin:8px 0}
+.prog i{height:100%;display:block}
+.prog .p-paid{background:#08D9D6} .prog .p-part{background:#FF2E63}
+.legend{display:flex;gap:16px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-top:6px}
+.legend span{display:flex;align-items:center;gap:5px}
+.dot{width:10px;height:10px;border-radius:3px;display:inline-block}
+/* login */
+.login{min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,#252A34,#1A1E26);padding:20px}
+.login-card{background:var(--card);border-radius:20px;padding:38px 34px;width:100%;max-width:380px;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+.login-logo{width:56px;height:56px;border-radius:15px;background:#08D9D6;display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--deep);font-size:24px;margin-bottom:18px}
+.login h1{font-size:21px;margin-bottom:4px}
+.login p.sub{font-size:13px;color:var(--muted);margin-bottom:24px}
+.field{margin-bottom:14px}
+.field label{display:block;font-size:12.5px;font-weight:600;margin-bottom:6px;color:var(--ink)}
+.field input,.field select{width:100%;padding:11px 13px;border:1px solid var(--line);border-radius:10px;font-size:14px;background:var(--cream)}
+.field input:focus,.field select:focus{outline:none;border-color:var(--teal);background:#fff}
+.login .btn-primary{width:100%;padding:12px;font-size:14px;margin-top:6px}
+.err{background:var(--coral-soft);color:#9E4A28;padding:9px 12px;border-radius:9px;font-size:12.5px;margin-bottom:14px}
+.note{font-size:11.5px;color:var(--muted);text-align:center;margin-top:16px;line-height:1.5}
+/* modal */
+.modal-bg{position:fixed;inset:0;background:rgba(14,42,40,.5);display:flex;align-items:center;justify-content:center;z-index:100;padding:20px}
+.modal{background:var(--card);border-radius:16px;padding:24px;width:100%;max-width:440px;max-height:90vh;overflow-y:auto}
+.modal h3{font-size:17px;margin-bottom:16px}
+.modal .field input,.modal .field select{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:9px;font-size:14px;background:var(--cream)}
+.modal-foot{display:flex;gap:10px;justify-content:flex-end;margin-top:20px}
+.banner{background:var(--butter-soft);border:1px solid var(--butter);border-radius:11px;padding:12px 15px;font-size:12.5px;color:#8A6D18;margin-bottom:18px;display:flex;gap:10px;align-items:flex-start}
+.banner b{color:#6E5612}
+.muted{color:var(--muted)} .rt{text-align:right} .center{text-align:center}
+.mini{font-size:11px;color:var(--muted)}
+.hcard{display:flex;gap:13px;flex-wrap:wrap}
+.hcard .hc{flex:1;min-width:130px;background:var(--cream);border-radius:11px;padding:13px 15px;border:1px solid var(--line)}
+.hc-v{font-size:19px;font-weight:700}
+.hc-l{font-size:11.5px;color:var(--muted)}
+@media(max-width:680px){.sidebar{position:fixed;z-index:50;left:0;box-shadow:8px 0 30px rgba(0,0,0,.2)}.sidebar.collapsed{width:0;overflow:hidden}.content{padding:16px}}
+</style>
+</head><body>
+<!-- LOGIN -->
+<div id="loginView" class="login">
+  <div class="login-card">
+    <div class="login-logo">M</div>
+    <h1>Mchango Command Center</h1>
+    <p class="sub">Arnold Bukangwa · Harusi 22 Aug 2026</p>
+    <div id="loginErr" class="err hidden"></div>
+    <div class="field">
+      <label>Email</label>
+      <input type="email" id="liEmail" placeholder="you@email.com" autocomplete="username">
+    </div>
+    <div class="field">
+      <label>Password</label>
+      <input type="password" id="liPass" placeholder="••••••••" autocomplete="current-password">
+    </div>
+    <button class="btn btn-primary" onclick="doLogin()">Sign in</button>
+    <p class="note" id="loginNote">Offline demo mode — pick any role below to explore.</p>
+    <div id="demoRoles" class="field" style="margin-top:14px">
+      <label>Demo role</label>
+      <select id="liDemoRole">
+        <option value="super_admin">Super admin (full access)</option>
+        <option value="admin">Admin (edit + dispatch)</option>
+        <option value="viewer">Viewer (dashboard only)</option>
+      </select>
+    </div>
+  </div>
+</div>
+
+<!-- APP -->
+<div id="appView" class="app hidden">
+  <aside class="sidebar" id="sidebar">
+    <div class="sb-brand">
+      <div class="sb-logo">M</div>
+      <div class="sb-brand-txt">Mchango<small>Command Center</small></div>
+    </div>
+    <nav class="nav" id="nav"></nav>
+    <div class="sb-foot" id="sbFoot"></div>
+  </aside>
+  <div class="main">
+    <div class="topbar">
+      <button class="burger" onclick="toggleSidebar()">☰</button>
+      <h2 id="viewTitle">Dashboard</h2>
+      <span class="pill" id="modePill">Offline</span>
+      <div class="who"><span>Signed in as <b id="whoName">—</b> · <span id="whoRole">—</span></span>
+        <button class="btn btn-ghost btn-sm" onclick="doLogout()">Sign out</button></div>
+    </div>
+    <div class="content" id="content"></div>
+  </div>
+</div>
+<div id="modalHost"></div>
+<script>
+window.SEED_GUESTS = [{"id": 1, "name": "Bukangwa", "category": "Family", "handler": "Arnold", "attending": "Yes", "pledged": 3000000, "paid": 2000000, "channel": "Ukumbi", "source": "WhatsApp", "currency": "TZS"}, {"id": 2, "name": "Mr & Mrs Manyama (Fausta Ndyamkama)", "category": "RelativeDar", "handler": "Mom", "attending": "Yes", "pledged": 200000, "paid": 200000, "channel": "Irene", "source": "WhatsApp", "currency": "TZS"}, {"id": 3, "name": "Mr & Mrs Haule", "category": "FamFriend", "handler": "Mom", "attending": "Yes", "pledged": 100000, "paid": 0, "channel": "", "source": "WhatsApp", "currency": "TZS"}, {"id": 4, "name": "Mr & Mrs Elly Kasimbazi", "category": "RelativeDar", "handler": "Mom", "attending": "Yes", "pledged": 150000, "paid": 0, "channel": "", "source": "WhatsApp", "currency": "TZS"}, {"id": 5, "name": "Mr Silivanus Mbaga", "category": "RelativeDar", "handler": "Mom", "attending": "Yes", "pledged": 100000, "paid": 0, "channel": "", "source": "WhatsApp", "currency": "TZS"}, {"id": 6, "name": "Ms Alistidia Kasimbazi", "category": "RelativeDar", "handler": "Mom", "attending": "Yes", "pledged": 200000, "paid": 0, "channel": "", "source": "WhatsApp", "currency": "TZS"}, {"id": 7, "name": "Mr & Mrs Leonce", "category": "FamFriend", "handler": "Mom", "attending": "Yes", "pledged": 200000, "paid": 0, "channel": "", "source": "WhatsApp", "currency": "TZS"}, {"id": 8, "name": "Ms Safina", "category": "FamFriend", "handler": "Mom", "attending": "Yes", "pledged": 50000, "paid": 0, "channel": "", "source": "WhatsApp", "currency": "TZS"}, {"id": 9, "name": "Mr & Mrs Linus Mbaga", "category": "RelativeDar", "handler": "Mom", "attending": "Yes", "pledged": 100000, "paid": 0, "channel": "", "source": "WhatsApp", "currency": "TZS"}, {"id": 10, "name": "Ma Angelika Nasimire", "category": "RelativeBKB", "handler": "Mom", "attending": "Yes", "pledged": 100000, "paid": 0, "channel": "", "source": "WhatsApp", "currency": "TZS"}, {"id": 11, "name": "Mr & Mrs Iraeneus Kasimbazi", "category": "RelativeTZ", "handler": "Mom", "attending": "Yes", "pledged": 500000, "paid": 0, "channel": "", "source": "WhatsApp", "currency": "TZS"}, {"id": 12, "name": "Mr & Mrs Rwechungura", "category": "FamFriend", "handler": "Irene", "attending": "Yes", "pledged": 1000000, "paid": 0, "channel": "", "source": "WhatsApp", "currency": "TZS"}, {"id": 13, "name": "Mr & Mrs Mcharo Mlaki", "category": "RelativeDar", "handler": "Irene", "attending": "Yes", "pledged": 1200000, "paid": 600000, "channel": "Irene", "source": "WhatsApp", "currency": "TZS"}, {"id": 14, "name": "Mr & Mrs Eddie Kahabuka", "category": "RelativeDar", "handler": "Mom", "attending": "Yes", "pledged": 300000, "paid": 0, "channel": "", "source": "WhatsApp", "currency": "TZS"}, {"id": 15, "name": "Mr Denis Mbaga", "category": "RelativeDar", "handler": "Irene", "attending": "Yes", "pledged": 100000, "paid": 0, "channel": "", "source": "WhatsApp", "currency": "TZS"}, {"id": 16, "name": "Mr Samora Lukamilwa", "category": "RelativeDar", "handler": "Mom", "attending": "Yes", "pledged": 100000, "paid": 0, "channel": "", "source": "WhatsApp", "currency": "TZS"}, {"id": 17, "name": "Mr Derick Mbaga", "category": "RelativeDar", "handler": "Irene", "attending": "Yes", "pledged": 50000, "paid": 0, "channel": "", "source": "WhatsApp", "currency": "TZS"}, {"id": 18, "name": "Mr & Mrs Hildebert Kasimbazi", "category": "RelativeTZ", "handler": "Mom", "attending": "Yes", "pledged": 100000, "paid": 0, "channel": "", "source": "WhatsApp", "currency": "TZS"}, {"id": 19, "name": "Mr & Mrs Projestus Kasimbazi", "category": "RelativeDar", "handler": "Mom", "attending": "Yes", "pledged": 200000, "paid": 0, "channel": "", "source": "WhatsApp", "currency": "TZS"}, {"id": 20, "name": "Mwesiga's Family", "category": "Uncategorized", "handler": "", "attending": "", "pledged": 500000, "paid": 0, "channel": "", "source": "WhatsApp", "currency": "TZS"}, {"id": 21, "name": "Mr Edgar Constantine", "category": "RelativeDar", "handler": "Mom", "attending": "Yes", "pledged": 200000, "paid": 0, "channel": "", "source": "WhatsApp", "currency": "TZS"}, {"id": 22, "name": "Mr Robert Kidando", "category": "RelativeTZ", "handler": "Mom", "attending": "Yes", "pledged": 200000, "paid": 0, "channel": "", "source": "WhatsApp", "currency": "TZS"}, {"id": 23, "name": "Mr & Mrs Egidius Kasimbazi", "category": "RelativeDar", "handler": "Mom", "attending": "Yes", "pledged": 100000, "paid": 0, "channel": "", "source": "WhatsApp", "currency": "TZS"}, {"id": 24, "name": "Mr & Mrs Mutoka (Angel Kasimbazi)", "category": "Uncategorized", "handler": "", "attending": "", "pledged": 150000, "paid": 150000, "channel": "", "source": "WhatsApp", "currency": "TZS"}, {"id": 25, "name": "Mr & Mrs Mtwale", "category": "Uncategorized", "handler": "Irene", "attending": "Yes", "pledged": 1000000, "paid": 0, "channel": "", "source": "WhatsApp", "currency": "TZS"}, {"id": 26, "name": "Mr & Mrs Ulimwengu", "category": "FamFriend", "handler": "Mom", "attending": "No", "pledged": 300000, "paid": 300000, "channel": "Irene", "source": "WhatsApp", "currency": "TZS"}, {"id": 27, "name": "Mr & Mrs Alphonse Mpeka (Edna Ngodoki)", "category": "FamFriend", "handler": "Irene", "attending": "Yes", "pledged": 150000, "paid": 150000, "channel": "Irene", "source": "WhatsApp", "currency": "TZS"}, {"id": 28, "name": "Melvin Gassana", "category": "Uncategorized", "handler": "", "attending": "", "pledged": 500000, "paid": 500000, "channel": "", "source": "WhatsApp", "currency": "TZS"}, {"id": 29, "name": "Andrew Mollel", "category": "Deloitte", "handler": "Arnold", "attending": "Yes", "pledged": 200000, "paid": 0, "channel": "", "source": "WhatsApp", "currency": "TZS"}, {"id": 30, "name": "Ashery Mbasha", "category": "Deloitte", "handler": "Arnold", "attending": "Yes", "pledged": 200000, "paid": 200000, "channel": "CRDB", "source": "WhatsApp", "currency": "TZS"}, {"id": 31, "name": "Benjamin Rutaihwa", "category": "Deloitte", "handler": "Arnold", "attending": "Yes", "pledged": 300000, "paid": 0, "channel": "", "source": "WhatsApp", "currency": "TZS"}, {"id": 32, "name": "Gladstone Arbogast", "category": "Deloitte", "handler": "Arnold", "attending": "Yes", "pledged": 400000, "paid": 0, "channel": "", "source": "WhatsApp", "currency": "TZS"}, {"id": 33, "name": "Grace Majiyawapwani", "category": "Deloitte", "handler": "Arnold", "attending": "Yes", "pledged": 400000, "paid": 0, "channel": "", "source": "WhatsApp", "currency": "TZS"}, {"id": 34, "name": "Jannath Makakala", "category": "Deloitte", "handler": "Arnold", "attending": "No", "pledged": 1000000, "paid": 1000000, "channel": "Irene", "source": "WhatsApp", "currency": "TZS"}, {"id": 35, "name": "Joan Joseph", "category": "Deloitte", "handler": "Arnold", "attending": "Yes", "pledged": 150000, "paid": 0, "channel": "", "source": "WhatsApp", "currency": "TZS"}, {"id": 36, "name": "Juliana Mtei", "category": "Deloitte", "handler": "Arnold", "attending": "Yes", "pledged": 200000, "paid": 200000, "channel": "Voda", "source": "WhatsApp", "currency": "TZS"}, {"id": 37, "name": "Mr & Mrs Katanga (Esebi)", "category": "FamFriend", "handler": "Mom", "attending": "No", "pledged": 500000, "paid": 500000, "channel": "CRDB", "source": "WhatsApp", "currency": "TZS"}, {"id": 38, "name": "Nobert Moshi", "category": "FriendDar", "handler": "Arnold", "attending": "Yes", "pledged": 200000, "paid": 200000, "channel": "Voda", "source": "WhatsApp", "currency": "TZS"}, {"id": 39, "name": "Suma Anna-Marie Maumba", "category": "FriendDar", "handler": "Arnold", "attending": "Yes", "pledged": 200000, "paid": 200000, "channel": "Selcom", "source": "WhatsApp", "currency": "TZS"}, {"id": 40, "name": "Issa Kissongo", "category": "ZEP", "handler": "Arnold", "attending": "Yes", "pledged": 1000000, "paid": 0, "channel": "", "source": "WhatsApp", "currency": "TZS"}, {"id": 41, "name": "Abdulkadir Kibanga", "category": "JKN", "handler": "Arnold", "attending": "Yes", "pledged": 300000, "paid": 0, "channel": "", "source": "WhatsApp", "currency": "TZS"}, {"id": 42, "name": "Aris Karumuna", "category": "JKN", "handler": "Arnold", "attending": "Yes", "pledged": 500000, "paid": 500000, "channel": "Voda", "source": "WhatsApp", "currency": "TZS"}, {"id": 43, "name": "Crespo Mujinja", "category": "JKN", "handler": "Arnold", "attending": "Yes", "pledged": 200000, "paid": 100000, "channel": "CRDB", "source": "WhatsApp", "currency": "TZS"}, {"id": 44, "name": "Dorothy Kimweri", "category": "JKN", "handler": "Arnold", "attending": "Yes", "pledged": 100000, "paid": 100000, "channel": "CRDB", "source": "WhatsApp", "currency": "TZS"}, {"id": 45, "name": "Edmund Letan", "category": "JKN", "handler": "Arnold", "attending": "Yes", "pledged": 500000, "paid": 200000, "channel": "Selcom", "source": "WhatsApp", "currency": "TZS"}, {"id": 46, "name": "Evelyn Mwambe", "category": "JKN", "handler": "Arnold", "attending": "Yes", "pledged": 100000, "paid": 0, "channel": "", "source": "WhatsApp", "currency": "TZS"}, {"id": 47, "name": "Frederick Killagane", "category": "JKN", "handler": "Arnold", "attending": "Yes", "pledged": 200000, "paid": 0, "channel": "", "source": "WhatsApp", "currency": "TZS"}, {"id": 48, "name": "Herry Mbena", "category": "JKN", "handler": "Arnold", "attending": "Yes", "pledged": 300000, "paid": 300000, "channel": "Selcom", "source": "WhatsApp", "currency": "TZS"}, {"id": 49, "name": "Jacob Fumbuka", "category": "JKN", "handler": "Arnold", "attending": "Yes", "pledged": 200000, "paid": 0, "channel": "", "source": "WhatsApp", "currency": "TZS"}, {"id": 50, "name": "Julius Swai", "category": "JKN", "handler": "Arnold", "attending": "Yes", "pledged": 120000, "paid": 0, "channel": "", "source": "WhatsApp", "currency": "TZS"}, {"id": 51, "name": "Kevin Kimaro", "category": "JKN", "handler": "Arnold", "attending": "Yes", "pledged": 150000, "paid": 0, "channel": "", "source": "WhatsApp", "currency": "TZS"}, {"id": 52, "name": "Princely Felix", "category": "JKN", "handler": "Arnold", "attending": "Yes", "pledged": 500000, "paid": 0, "channel": "", "source": "WhatsApp", "currency": "TZS"}, {"id": 53, "name": "Zahra Rubama", "category": "JKN", "handler": "Arnold", "attending": "Yes", "pledged": 200000, "paid": 0, "channel": "", "source": "WhatsApp", "currency": "TZS"}, {"id": 54, "name": "Adam Maranja", "category": "JKN", "handler": "Arnold", "attending": "Yes", "pledged": 500000, "paid": 0, "channel": "", "source": "WhatsApp", "currency": "TZS"}, {"id": 55, "name": "Kibiki Fortunatus", "category": "Mentor", "handler": "Arnold", "attending": "Yes", "pledged": 250000, "paid": 250000, "channel": "Selcom", "source": "WhatsApp", "currency": "TZS"}, {"id": 56, "name": "Siya P. Rimoy", "category": "Mentor", "handler": "Arnold", "attending": "Yes", "pledged": 200000, "paid": 200000, "channel": "Voda", "source": "WhatsApp", "currency": "TZS"}, {"id": 57, "name": "Aurelia Katanga", "category": "RelativeDar", "handler": "Mom", "attending": "Yes", "pledged": 100000, "paid": 0, "channel": "", "source": "WhatsApp", "currency": "TZS"}, {"id": 58, "name": "Janeth Mkinga", "category": "FamFriend", "handler": "Mom", "attending": "Yes", "pledged": 100000, "paid": 0, "channel": "", "source": "WhatsApp", "currency": "TZS"}, {"id": 59, "name": "Levina Enock", "category": "FamFriend", "handler": "Mom", "attending": "Yes", "pledged": 100000, "paid": 0, "channel": "", "source": "WhatsApp", "currency": "TZS"}, {"id": 60, "name": "Fred Mbanda", "category": "FamFriend", "handler": "Dad", "attending": "Yes", "pledged": 200000, "paid": 0, "channel": "", "source": "WhatsApp", "currency": "TZS"}, {"id": 61, "name": "Mr & Mrs Kassana", "category": "FamFriend", "handler": "Arnold", "attending": "Yes", "pledged": 300000, "paid": 0, "channel": "", "source": "WhatsApp", "currency": "TZS"}, {"id": 62, "name": "Linda Ruhuza", "category": "FamFriend", "handler": "Irene", "attending": "Yes", "pledged": 150000, "paid": 0, "channel": "", "source": "WhatsApp", "currency": "TZS"}, {"id": 63, "name": "Monica Martin", "category": "FamFriend", "handler": "Mom", "attending": "", "pledged": 200000, "paid": 0, "channel": "", "source": "WhatsApp", "currency": "TZS"}, {"id": 64, "name": "Edina Rutemelwa", "category": "FamFriend", "handler": "Irene", "attending": "Yes", "pledged": 100000, "paid": 100000, "channel": "Irene", "source": "WhatsApp", "currency": "TZS"}, {"id": 65, "name": "Joseph Kahatano", "category": "FriendDar", "handler": "Arnold", "attending": "Yes", "pledged": 300000, "paid": 0, "channel": "", "source": "WhatsApp", "currency": "TZS"}, {"id": 66, "name": "Mr & Mrs Benjamin Mpamo", "category": "FamFriend", "handler": "Dad", "attending": "No", "pledged": 500000, "paid": 0, "channel": "", "source": "WhatsApp", "currency": "TZS"}, {"id": 67, "name": "Dr Mugassa Steven", "category": "FamFriend", "handler": "Mom", "attending": "Yes", "pledged": 100000, "paid": 0, "channel": "", "source": "WhatsApp", "currency": "TZS"}, {"id": 68, "name": "Elizabeth Ngulukulu", "category": "FamFriend", "handler": "Mom", "attending": "Yes", "pledged": 150000, "paid": 0, "channel": "", "source": "WhatsApp", "currency": "TZS"}, {"id": 69, "name": "Mr & Mrs Kashangaki", "category": "FamFriend", "handler": "Mom", "attending": "Yes", "pledged": 150000, "paid": 0, "channel": "", "source": "WhatsApp", "currency": "TZS"}, {"id": 70, "name": "Murungi Kichwabuta", "category": "FamFriend", "handler": "Mom", "attending": "", "pledged": 100000, "paid": 0, "channel": "", "source": "WhatsApp", "currency": "TZS"}, {"id": 71, "name": "Mr & Mrs Rugaitika", "category": "FamFriend", "handler": "Mom", "attending": "Yes", "pledged": 100000, "paid": 0, "channel": "", "source": "WhatsApp", "currency": "TZS"}, {"id": 72, "name": "Mr & Mrs Elvine Elias", "category": "Uncategorized", "handler": "", "attending": "", "pledged": 1000000, "paid": 1000000, "channel": "", "source": "WhatsApp", "currency": "TZS"}, {"id": 73, "name": "Mrs Bernadette Shem", "category": "FamFriend", "handler": "Mom", "attending": "Yes", "pledged": 200000, "paid": 200000, "channel": "Irene", "source": "WhatsApp", "currency": "TZS"}, {"id": 74, "name": "Mrs Devota Kagoro", "category": "FamFriend", "handler": "Mom", "attending": "Yes", "pledged": 200000, "paid": 0, "channel": "", "source": "WhatsApp", "currency": "TZS"}, {"id": 75, "name": "Mr Adam Kamana (Feruz)", "category": "FamFriend", "handler": "Mom", "attending": "", "pledged": 100000, "paid": 0, "channel": "", "source": "WhatsApp", "currency": "TZS"}, {"id": 76, "name": "Mr Erasto Mbilinyi", "category": "FamFriend", "handler": "Mom", "attending": "", "pledged": 100000, "paid": 100000, "channel": "Irene", "source": "WhatsApp", "currency": "TZS"}, {"id": 77, "name": "Mr & Mrs Baridi", "category": "RelativeDar", "handler": "Dre", "attending": "Yes", "pledged": 250000, "paid": 0, "channel": "", "source": "WhatsApp", "currency": "TZS"}, {"id": 78, "name": "Mrs Iman Binger", "category": "FamFriend", "handler": "Arnold", "attending": "No", "pledged": 150000, "paid": 150000, "channel": "Voda", "source": "WhatsApp", "currency": "TZS"}, {"id": 79, "name": "Mr & Mrs Alphonce Nyiridandi", "category": "FamFriend", "handler": "Dad", "attending": "Yes", "pledged": 100000, "paid": 0, "channel": "", "source": "WhatsApp", "currency": "TZS"}, {"id": 80, "name": "Mr & Mrs John Shumbusho", "category": "FamFriend", "handler": "Mom", "attending": "Yes", "pledged": 1000000, "paid": 1000000, "channel": "Irene", "source": "WhatsApp", "currency": "TZS"}, {"id": 81, "name": "Mr & Mrs Karekezi", "category": "FamFriend", "handler": "Dad", "attending": "Yes", "pledged": 100000, "paid": 0, "channel": "", "source": "WhatsApp", "currency": "TZS"}, {"id": 82, "name": "Dr & Mrs Paul Mungai", "category": "FriendNBO", "handler": "Arnold", "attending": "Yes", "pledged": 400000, "paid": 400000, "channel": "CRDB", "source": "WhatsApp", "currency": "TZS"}, {"id": 83, "name": "Ms Sophia Seleman", "category": "RelativeDar", "handler": "Mom", "attending": "Yes", "pledged": 200000, "paid": 0, "channel": "", "source": "WhatsApp", "currency": "TZS"}, {"id": 84, "name": "Mr. & Mrs. Alipio (Ma Celina)", "category": "Uncategorized", "handler": "", "attending": "", "pledged": 100000, "paid": 0, "channel": "", "source": "WhatsApp", "currency": "TZS"}, {"id": 85, "name": "Mr & Mrs Methodius Mutahangarwa", "category": "Uncategorized", "handler": "Mom", "attending": "Yes", "pledged": 100000, "paid": 0, "channel": "", "source": "WhatsApp", "currency": "TZS"}, {"id": 86, "name": "Hilda Kamuhabwa", "category": "Uncategorized", "handler": "Mom", "attending": "Yes", "pledged": 100000, "paid": 100000, "channel": "Irene", "source": "WhatsApp", "currency": "TZS"}, {"id": 87, "name": "Carine Msuya", "category": "Deloitte", "handler": "Arnold", "attending": "Yes", "pledged": 100000, "paid": 0, "channel": "", "source": "WhatsApp", "currency": "TZS"}, {"id": 88, "name": "Mr & Mrs Abraham Salewi", "category": "Deloitte", "handler": "Arnold", "attending": "Yes", "pledged": 150000, "paid": 0, "channel": "", "source": "WhatsApp", "currency": "TZS"}, {"id": 89, "name": "Mr & Mrs Flavian Kinunda", "category": "FamFriend", "handler": "Mom", "attending": "Yes", "pledged": 200000, "paid": 0, "channel": "", "source": "WhatsApp", "currency": "TZS"}, {"id": 90, "name": "Mrs Imelda Mutafungwa", "category": "Uncategorized", "handler": "Mom", "attending": "Yes", "pledged": 300000, "paid": 300000, "channel": "Irene", "source": "WhatsApp", "currency": "TZS"}, {"id": 91, "name": "Aunt Eva and Tracy", "category": "Uncategorized", "handler": "", "attending": "", "pledged": 200000, "paid": 0, "channel": "", "source": "WhatsApp", "currency": "TZS"}, {"id": 92, "name": "Mr & Mrs Josephat Kinyondo", "category": "Uncategorized", "handler": "", "attending": "", "pledged": 200000, "paid": 200000, "channel": "", "source": "WhatsApp", "currency": "TZS"}, {"id": 93, "name": "Family Kayumba Isidore", "category": "Kigali", "handler": "Dre", "attending": "", "pledged": 100000, "paid": 100000, "channel": "", "source": "Rwanda", "currency": "RWF"}, {"id": 94, "name": "Family Mashinga Theobald", "category": "Kigali", "handler": "Dre", "attending": "", "pledged": 100000, "paid": 0, "channel": "", "source": "Rwanda", "currency": "RWF"}, {"id": 95, "name": "Family Gatari Emmanuel", "category": "Kigali", "handler": "Dre", "attending": "", "pledged": 200000, "paid": 200000, "channel": "", "source": "Rwanda", "currency": "RWF"}, {"id": 96, "name": "Family Ndahiro Faroh", "category": "Kigali", "handler": "Dre", "attending": "", "pledged": 50000, "paid": 50000, "channel": "", "source": "Rwanda", "currency": "RWF"}, {"id": 97, "name": "Family Shumbusho Vianney", "category": "Kigali", "handler": "Dre", "attending": "", "pledged": 100000, "paid": 100000, "channel": "", "source": "Rwanda", "currency": "RWF"}, {"id": 98, "name": "Family Gasinzigwa Paul", "category": "Kigali", "handler": "Dre", "attending": "", "pledged": 100000, "paid": 0, "channel": "", "source": "Rwanda", "currency": "RWF"}, {"id": 99, "name": "Family Yisa Claver", "category": "Kigali", "handler": "Dre", "attending": "", "pledged": 100000, "paid": 0, "channel": "", "source": "Rwanda", "currency": "RWF"}, {"id": 100, "name": "Family Muligo Godfrey", "category": "Kigali", "handler": "Dre", "attending": "", "pledged": 100000, "paid": 0, "channel": "", "source": "Rwanda", "currency": "RWF"}, {"id": 101, "name": "Family Gakwandi Yusto", "category": "Kigali", "handler": "Dre", "attending": "", "pledged": 50000, "paid": 0, "channel": "", "source": "Rwanda", "currency": "RWF"}, {"id": 102, "name": "Family Ntare Simon", "category": "Kigali", "handler": "Dre", "attending": "", "pledged": 1500000, "paid": 1500000, "channel": "", "source": "Rwanda", "currency": "RWF"}, {"id": 103, "name": "Family Rugina Justin", "category": "Kigali", "handler": "Dre", "attending": "", "pledged": 20000, "paid": 0, "channel": "", "source": "Rwanda", "currency": "RWF"}, {"id": 104, "name": "Family Musemakweli John", "category": "Kigali", "handler": "Dre", "attending": "", "pledged": 100000, "paid": 0, "channel": "", "source": "Rwanda", "currency": "RWF"}, {"id": 105, "name": "Family Malonga Pacifique", "category": "Kigali", "handler": "Dre", "attending": "", "pledged": 50000, "paid": 0, "channel": "", "source": "Rwanda", "currency": "RWF"}, {"id": 106, "name": "Family Phillip Gakirage", "category": "Kigali", "handler": "Dre", "attending": "", "pledged": 50000, "paid": 50000, "channel": "", "source": "Rwanda", "currency": "RWF"}, {"id": 107, "name": "Family Anicet Kanobayita", "category": "Kigali", "handler": "Dre", "attending": "", "pledged": 50000, "paid": 0, "channel": "", "source": "Rwanda", "currency": "RWF"}, {"id": 108, "name": "Family Innocent Rutamu", "category": "Kigali", "handler": "Dre", "attending": "", "pledged": 100000, "paid": 100000, "channel": "", "source": "Rwanda", "currency": "RWF"}, {"id": 109, "name": "Family Rwagitare Gregory", "category": "Kigali", "handler": "Dre", "attending": "", "pledged": 100000, "paid": 0, "channel": "", "source": "Rwanda", "currency": "RWF"}, {"id": 110, "name": "Family Ruziga John", "category": "Kigali", "handler": "Dre", "attending": "", "pledged": 50000, "paid": 0, "channel": "", "source": "Rwanda", "currency": "RWF"}, {"id": 111, "name": "MATA", "category": "Kigali", "handler": "Dre", "attending": "", "pledged": 50000, "paid": 0, "channel": "", "source": "Rwanda", "currency": "RWF"}, {"id": 112, "name": "Family Seth Kamanzi", "category": "Kigali", "handler": "Dre", "attending": "", "pledged": 100000, "paid": 100000, "channel": "", "source": "Rwanda", "currency": "RWF"}, {"id": 113, "name": "Family Tom Ndahiro", "category": "Kigali", "handler": "Dre", "attending": "", "pledged": 50000, "paid": 50000, "channel": "", "source": "Rwanda", "currency": "RWF"}, {"id": 114, "name": "Bea Mama Ruti UK", "category": "Kigali", "handler": "Dre", "attending": "", "pledged": 100000, "paid": 100000, "channel": "", "source": "Rwanda", "currency": "RWF"}, {"id": 115, "name": "Patricia Hajabakiga", "category": "Kigali", "handler": "Dre", "attending": "", "pledged": 50000, "paid": 50000, "channel": "", "source": "Rwanda", "currency": "RWF"}, {"id": 116, "name": "Family Jumapili", "category": "Kigali", "handler": "Dre", "attending": "", "pledged": 100000, "paid": 100000, "channel": "", "source": "Rwanda", "currency": "RWF"}, {"id": 117, "name": "Family Eudes Bugingo", "category": "Kigali", "handler": "Dre", "attending": "", "pledged": 100000, "paid": 100000, "channel": "", "source": "Rwanda", "currency": "RWF"}, {"id": 118, "name": "Nassrah", "category": "Kigali", "handler": "Dre", "attending": "", "pledged": 50000, "paid": 0, "channel": "", "source": "Rwanda", "currency": "RWF"}, {"id": 119, "name": "Family Eudes Kayumba", "category": "Kigali", "handler": "Dre", "attending": "", "pledged": 100000, "paid": 100000, "channel": "", "source": "Rwanda", "currency": "RWF"}, {"id": 120, "name": "Family Aimable Gakirage", "category": "Kigali", "handler": "Dre", "attending": "", "pledged": 50000, "paid": 50000, "channel": "", "source": "Rwanda", "currency": "RWF"}, {"id": 121, "name": "Family Mwl. Canisius Rusagara", "category": "Kigali", "handler": "Dre", "attending": "", "pledged": 100000, "paid": 100000, "channel": "", "source": "Rwanda", "currency": "RWF"}, {"id": 122, "name": "Family Emmanuel Ngoga", "category": "Kigali", "handler": "Dre", "attending": "", "pledged": 50000, "paid": 50000, "channel": "", "source": "Rwanda", "currency": "RWF"}, {"id": 123, "name": "Mdm Odette Mukankusi", "category": "Kigali", "handler": "Dre", "attending": "", "pledged": 30000, "paid": 30000, "channel": "", "source": "Rwanda", "currency": "RWF"}, {"id": 124, "name": "Family Silale", "category": "Kigali", "handler": "Dre", "attending": "", "pledged": 30000, "paid": 0, "channel": "", "source": "Rwanda", "currency": "RWF"}, {"id": 125, "name": "Family John Kamanzi", "category": "Kigali", "handler": "Dre", "attending": "", "pledged": 30000, "paid": 30000, "channel": "", "source": "Rwanda", "currency": "RWF"}, {"id": 126, "name": "Family Eugene Mwinura", "category": "Kigali", "handler": "Dre", "attending": "", "pledged": 100000, "paid": 100000, "channel": "", "source": "Rwanda", "currency": "RWF"}, {"id": 127, "name": "Family Augustin Rutamu", "category": "Kigali", "handler": "Dre", "attending": "", "pledged": 50000, "paid": 50000, "channel": "", "source": "Rwanda", "currency": "RWF"}, {"id": 128, "name": "Family Silas Ndamage", "category": "Kigali", "handler": "Dre", "attending": "", "pledged": 30000, "paid": 30000, "channel": "", "source": "Rwanda", "currency": "RWF"}, {"id": 129, "name": "Family Juru & Kayitesi", "category": "Kigali", "handler": "Dre", "attending": "", "pledged": 300, "paid": 0, "channel": "", "source": "Rwanda", "currency": "USD"}, {"id": 130, "name": "Family Emmanuel Kanigwa", "category": "Kigali", "handler": "Dre", "attending": "", "pledged": 100, "paid": 0, "channel": "", "source": "Rwanda", "currency": "USD"}];
+window.SEED_SPEND = [{"item": "Total Damage", "budget": 51870000, "spent": 2000000}, {"item": "Michango Expected", "budget": 27620000, "spent": 0.5324850588008483}, {"item": "Michango Received", "budget": 11200000, "spent": 0.21592442645074225}, {"item": "Best case gap", "budget": 24250000, "spent": 0.4675149411991517}, {"item": "Worst case gap", "budget": 40670000, "spent": 0.7840755735492577}, {"item": "Wedding Budget", "budget": 51870000, "spent": 2000000}, {"item": "Hall Rental", "budget": 4000000, "spent": 2000000}, {"item": "Kibali", "budget": 180000, "spent": 0}, {"item": "Chakula", "budget": 16000000, "spent": 0}, {"item": "MC & Mziki", "budget": 2750000, "spent": 0}, {"item": "Usafiri", "budget": 2000000, "spent": 0}, {"item": "Mapambo", "budget": 10000000, "spent": 0}, {"item": "Vinywaji", "budget": 8000000, "spent": 0}, {"item": "Picha & Video", "budget": 2500000, "spent": 0}, {"item": "Keki", "budget": 1000000, "spent": 0}, {"item": "ENVAITA", "budget": 440000, "spent": 0}, {"item": "Zawadi", "budget": 4000000, "spent": 0}, {"item": "Emergency", "budget": 1000000, "spent": 0}, {"item": "Personal Damage", "budget": 33435680, "spent": 13516080}, {"item": "TZS Amounts", "budget": 4505000, "spent": 4205000}, {"item": "Dot", "budget": 1900000, "spent": 1900000}, {"item": "Dot Goods", "budget": 505000, "spent": 505000}, {"item": "Dot hosting", "budget": 1600000, "spent": 1600000}, {"item": "St Peters", "budget": 500000, "spent": 200000}, {"item": "USD Amounts", "budget": 8344, "spent": 2344}, {"item": "Engagement Ring", "budget": 1850, "spent": 1850}, {"item": "Wedding Bands", "budget": 1000, "spent": 0}, {"item": "Ticket for Mama - Mahari", "budget": 494, "spent": 494}, {"item": "Tickets for Mom & Dad - August", "budget": 1000, "spent": 0}, {"item": "Ticket for Dre - August", "budget": 500, "spent": 0}, {"item": "Airbnb August", "budget": 1000, "spent": 0}, {"item": "Hotel for Couple August", "budget": 2000, "spent": 0}, {"item": "Pocket money for Mom & Dad", "budget": 500, "spent": 0}, {"item": "KES Amounts", "budget": 353470, "spent": 158490}, {"item": "Ticket for Grace - Mahari", "budget": 71470, "spent": 71470}, {"item": "Ticket for Arnold - Mahari (incl. change)", "budget": 72000, "spent": 87020}, {"item": "Tickets for Couple - August", "budget": 150000, "spent": 0}, {"item": "KX19 to and from Dar", "budget": 60000, "spent": 0}];
+</script>
+<script>
+/* ===== CONFIG ===== */
+window.SUPABASE_URL = "";      // paste your project URL to go live
+window.SUPABASE_ANON = "";     // paste your anon key
+const PAY = { bank:"Stanbic Bank: 9120003845239", mixx:"Mixx by Yas: 0715123050", selcom:"Selcom Pesa/Mpesa: 0756444796", name:"Irene Mlaki" };
+
+/* ===== STATE ===== */
+let sb=null, LIVE=false, ME=null, GUESTS=[], SPEND=[], curView='dash', sortKey='name', sortDir=1;
+const SOURCES=['WhatsApp','Main','Rwanda'];
+const SOURCE_COLORS={WhatsApp:'#08D9D6',Main:'#252A34',Rwanda:'#FF2E63'};
+const tzs=g=>(g.currency||'TZS')==='TZS';
+const rwf=g=>g.currency==='RWF';
+const usd=g=>g.currency==='USD';
+const CUR_SYM={TZS:'TZS',RWF:'RWF',USD:'$'};
+
+const money=n=>Number(n||0).toLocaleString('en-US');
+const M=n=>(Number(n||0)/1e6).toFixed(1)+'M';
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const statusOf=g=>{const p=+g.pledged||0,pd=+g.paid||0; if(p<=0)return'none'; if(pd>=p&&pd>0)return'paid'; if(pd>0)return'partial'; return'pledged';};
+const isPledger=g=>(+g.pledged||0)>0;
+
+/* ===== ROLES ===== */
+const ROLE_RANK={viewer:1,admin:2,super_admin:3};
+const can={ write:()=>ME&&ROLE_RANK[ME.role]>=2, admin:()=>ME&&ROLE_RANK[ME.role]>=3, dispatch:()=>ME&&(ME.is_dispatcher||ROLE_RANK[ME.role]>=2) };
+
+/* ===== DATA LAYER ===== */
+async function initData(){
+  if(window.SUPABASE_URL && window.SUPABASE_ANON){
+    sb=supabase.createClient(window.SUPABASE_URL,window.SUPABASE_ANON); LIVE=true;
+  }
+}
+async function loadAll(){
+  if(LIVE){
+    const {data:g}=await sb.from('guests').select('*').order('name');
+    const {data:s}=await sb.from('spend').select('*');
+    GUESTS=g||[]; SPEND=s||[];
+  } else {
+    const lg=localStorage.getItem('mc_guests'), ls=localStorage.getItem('mc_spend');
+    GUESTS = lg?JSON.parse(lg):JSON.parse(JSON.stringify(window.SEED_GUESTS));
+    SPEND  = ls?JSON.parse(ls):JSON.parse(JSON.stringify(window.SEED_SPEND));
+  }
+}
+function persist(){ if(!LIVE){ localStorage.setItem('mc_guests',JSON.stringify(GUESTS)); localStorage.setItem('mc_spend',JSON.stringify(SPEND)); } }
+
+async function saveGuest(g){
+  if(LIVE){
+    if(g.id){ const {error}=await sb.from('guests').update(g).eq('id',g.id); if(error)throw error; }
+    else { const {data,error}=await sb.from('guests').insert(g).select().single(); if(error)throw error; g.id=data.id; }
+  } else {
+    if(g.id){ const i=GUESTS.findIndex(x=>x.id===g.id); GUESTS[i]=g; }
+    else { g.id=Math.max(0,...GUESTS.map(x=>x.id))+1; GUESTS.push(g); }
+    persist();
+  }
+}
+async function deleteGuest(id){
+  if(LIVE){ const {error}=await sb.from('guests').delete().eq('id',id); if(error)throw error; }
+  else { GUESTS=GUESTS.filter(x=>x.id!==id); persist(); }
+}
+
+/* ===== AUTH ===== */
+async function doLogin(){
+  const email=document.getElementById('liEmail').value.trim();
+  const pass=document.getElementById('liPass').value;
+  const errEl=document.getElementById('loginErr');
+  errEl.classList.add('hidden');
+  if(LIVE){
+    const {data,error}=await sb.auth.signInWithPassword({email,password:pass});
+    if(error){ errEl.textContent=error.message; errEl.classList.remove('hidden'); return; }
+    const {data:prof}=await sb.from('profiles').select('*').eq('id',data.user.id).single();
+    ME={name:prof?.name||email,role:prof?.role||'viewer',is_dispatcher:prof?.is_dispatcher||false,email};
+  } else {
+    const role=document.getElementById('liDemoRole').value;
+    ME={name:email||({super_admin:'Dray',admin:'Committee',viewer:'Guest'}[role]),role,is_dispatcher:role!=='viewer',email:email||'demo@local'};
+  }
+  await loadAll();
+  document.getElementById('loginView').classList.add('hidden');
+  document.getElementById('appView').classList.remove('hidden');
+  document.getElementById('whoName').textContent=ME.name;
+  document.getElementById('whoRole').textContent=ME.role.replace('_',' ');
+  document.getElementById('modePill').textContent=LIVE?'Live':'Offline';
+  buildNav(); go(ROLE_RANK[ME.role]>=1?'dash':'dash');
+}
+function doLogout(){ ME=null; document.getElementById('appView').classList.add('hidden'); document.getElementById('loginView').classList.remove('hidden'); document.getElementById('liPass').value=''; }
+function toggleSidebar(){ document.getElementById('sidebar').classList.toggle('collapsed'); }
+
+/* ===== NAV ===== */
+const NAV=[
+  {id:'dash',ico:'◧',label:'Dashboard',min:1},
+  {id:'contrib',ico:'❑',label:'Contributors',min:1},
+  {id:'guests',ico:'☷',label:'Guest list',min:1},
+  {id:'rwanda',ico:'❋',label:'Rwanda (RWF/USD)',min:1},
+  {id:'budget',ico:'▤',label:'Budget & spend',min:1},
+  {id:'dispatch',ico:'✎',label:'Dispatcher',min:2,disp:true},
+  {id:'admin',ico:'⚙',label:'Admin',min:3},
+];
+function buildNav(){
+  const nav=document.getElementById('nav'); nav.innerHTML='';
+  NAV.forEach(n=>{
+    if(ROLE_RANK[ME.role]<n.min) return;
+    if(n.disp && !can.dispatch()) return;
+    const b=document.createElement('button');
+    b.className='nav-item'+(curView===n.id?' active':'');
+    b.innerHTML=`<span class="nav-ico">${n.ico}</span><span class="nav-txt">${n.label}</span>`;
+    b.onclick=()=>go(n.id);
+    nav.appendChild(b);
+  });
+  document.getElementById('sbFoot').innerHTML=`${GUESTS.length} guests · ${GUESTS.filter(isPledger).length} pledgers`;
+}
+function go(v){ curView=v; document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));
+  buildNav();
+  const titles={dash:'Dashboard',contrib:'Contributors',guests:'Guest list',rwanda:'Rwanda (RWF & USD)',budget:'Budget & spend',dispatch:'Dispatcher',admin:'Admin'};
+  document.getElementById('viewTitle').textContent=titles[v]||v;
+  if(window.innerWidth<680) document.getElementById('sidebar').classList.add('collapsed');
+  render();
+}
+/* ===== RENDER ROUTER ===== */
+function _noChart(id){var el=document.getElementById(id);if(el){var w=el.closest('.chart-wrap');if(w)w.innerHTML='<p style="color:var(--muted);font-size:12px;text-align:center;padding:40px 0">Chart needs internet connection to load.</p>';}}
+let charts=[];
+function killCharts(){ charts.forEach(c=>{try{c.destroy()}catch(e){}}); charts=[]; }
+function render(){
+  killCharts();
+  const c=document.getElementById('content');
+  if(curView==='dash') c.innerHTML=viewDash();
+  else if(curView==='contrib') c.innerHTML=viewContrib();
+  else if(curView==='guests') c.innerHTML=viewGuests();
+  else if(curView==='rwanda') c.innerHTML=viewRwanda();
+  else if(curView==='budget') c.innerHTML=viewBudget();
+  else if(curView==='dispatch') c.innerHTML=viewDispatch();
+  else if(curView==='admin') c.innerHTML=viewAdmin();
+  if(curView==='dash') drawDashCharts();
+  if(curView==='rwanda') drawRwandaChart();
+  if(curView==='budget') drawBudgetChart();
+}
+
+/* ===== TOTALS ===== */
+function totals(){
+  const pl=GUESTS.filter(g=>isPledger(g)&&tzs(g));
+  const pledged=pl.reduce((s,g)=>s+(+g.pledged||0),0);
+  const paid=pl.reduce((s,g)=>s+(+g.paid||0),0);
+  return {pledged,paid,out:pledged-paid,nP:pl.length,n:GUESTS.length,
+    paidN:pl.filter(g=>statusOf(g)==='paid').length,
+    partN:pl.filter(g=>statusOf(g)==='partial').length,
+    pendN:pl.filter(g=>statusOf(g)==='pledged').length};
+}
+function curTotals(cur){
+  const pl=GUESTS.filter(g=>isPledger(g)&&g.currency===cur&&(g.source==='Rwanda'||cur!=='TZS'));
+  const pledged=pl.reduce((s,g)=>s+(+g.pledged||0),0);
+  const paid=pl.reduce((s,g)=>s+(+g.paid||0),0);
+  return {pledged,paid,out:pledged-paid,n:pl.length,rows:pl,
+    paidN:pl.filter(g=>statusOf(g)==='paid').length,
+    partN:pl.filter(g=>statusOf(g)==='partial').length,
+    pendN:pl.filter(g=>statusOf(g)==='pledged').length};
+}
+function bySource(){
+  const m={};
+  GUESTS.filter(g=>isPledger(g)&&tzs(g)).forEach(g=>{const k=g.source||'Main'; m[k]=m[k]||{exp:0,rec:0,n:0}; m[k].n++; m[k].exp+=+g.pledged||0; m[k].rec+=+g.paid||0;});
+  return m;
+}
+function budgetTotals(){
+  const dmg=SPEND.find(s=>/damage|total/i.test(s.item));
+  const totalCost=dmg?dmg.budget:SPEND.reduce((s,x)=>s+(+x.budget||0),0);
+  const t=totals();
+  return {totalCost,gapBest:totalCost-t.pledged,gapWorst:totalCost-t.paid};
+}
+function byCategory(){
+  const m={};
+  GUESTS.forEach(g=>{const k=g.category||'Uncategorized'; m[k]=m[k]||{exp:0,rec:0,n:0,pl:0}; m[k].n++; m[k].exp+=+g.pledged||0; m[k].rec+=+g.paid||0; if(isPledger(g))m[k].pl++;});
+  return Object.entries(m).filter(([k,v])=>v.exp>0).sort((a,b)=>b[1].exp-a[1].exp);
+}
+function byChannel(){
+  const m={};
+  GUESTS.forEach(g=>{ if((+g.paid||0)>0){const k=g.channel||'Unknown'; m[k]=(m[k]||0)+(+g.paid||0);}});
+  return Object.entries(m).sort((a,b)=>b[1]-a[1]);
+}
+function byHandler(){
+  const m={};
+  GUESTS.forEach(g=>{const k=g.handler||'Unassigned'; m[k]=m[k]||{exp:0,rec:0,n:0}; m[k].n++; m[k].exp+=+g.pledged||0; m[k].rec+=+g.paid||0;});
+  return Object.entries(m).sort((a,b)=>b[1].rec-a[1].rec);
+}
+
+/* ===== DASHBOARD ===== */
+function viewDash(){
+  const t=totals(), b=budgetTotals();
+  const pct=t.pledged?Math.round(t.paid/t.pledged*100):0;
+  const paidPct=t.pledged?t.paid/t.pledged*100:0;
+  const partPct=t.pledged?GUESTS.filter(g=>statusOf(g)==='partial').reduce((s,g)=>s+(+g.pledged-+g.paid),0)/t.pledged*100:0;
+  const drift = t.pledged!==27420000;
+  return `
+  ${drift?`<div class="banner"><span>⚠</span><div>This dataset was seeded from <b>TheList.xlsx</b> and totals <b>${money(t.pledged)}</b> across ${t.nP} pledgers — which differs from the committee's authoritative 90-person list (27,420,000). Use the Contributors view to reconcile which entries are real before trusting these figures as final.</div></div>`:''}
+  <div class="kpi-row">
+    <div class="kpi k-teal"><div class="kpi-lbl">Collected</div><div class="kpi-val">${money(t.paid)}</div><div class="kpi-sub pos">${pct}% of ${M(t.pledged)} pledged</div></div>
+    <div class="kpi k-coral"><div class="kpi-lbl">Outstanding</div><div class="kpi-val">${money(t.out)}</div><div class="kpi-sub">still to collect</div></div>
+    <div class="kpi k-deep"><div class="kpi-lbl">Event budget</div><div class="kpi-val">${M(b.totalCost)}</div><div class="kpi-sub">total cost</div></div>
+    <div class="kpi k-butter"><div class="kpi-lbl">Funding gap</div><div class="kpi-val">${money(b.gapWorst)}</div><div class="kpi-sub neg">worst case (vs cash)</div></div>
+  </div>
+  <div class="panel">
+    <div class="panel-h"><h3>Collection progress</h3><span class="sub">${t.paidN} paid · ${t.partN} partial · ${t.pendN} awaiting</span></div>
+    <div class="prog"><i class="p-paid" style="width:${paidPct}%"></i><i class="p-part" style="width:${partPct}%"></i></div>
+    <div class="legend"><span><span class="dot" style="background:var(--teal)"></span>Fully paid</span><span><span class="dot" style="background:var(--coral)"></span>Partial</span><span><span class="dot" style="background:#EDE3CE"></span>Not yet</span></div>
+  </div>
+  <div class="grid-2">
+    <div class="panel"><div class="panel-h"><h3>Contributions by category</h3></div><div class="chart-wrap"><canvas id="catChart"></canvas></div></div>
+    <div class="panel"><div class="panel-h"><h3>Cash by channel</h3></div><div class="chart-wrap sm"><canvas id="chanChart"></canvas></div></div>
+  </div>
+  <div class="panel"><div class="panel-h"><h3>Where pledges are tracked</h3><span class="sub">by source list</span></div><div id="srcCards" class="hcard"></div><div class="chart-wrap sm" style="margin-top:14px"><canvas id="srcChart"></canvas></div></div>
+  <div class="panel"><div class="panel-h"><h3>Raised by handler</h3><span class="sub">who's collecting what</span></div><div class="chart-wrap sm"><canvas id="handChart"></canvas></div></div>
+  `;
+}
+function drawDashCharts(){ if(typeof Chart==="undefined"){["catChart","chanChart","handChart"].forEach(_noChart);return;}
+  const C={teal:'#08D9D6',coral:'#FF2E63',gold:'#FF2E63',deep:'#252A34',aqua:'#08D9D6'};
+  const cat=byCategory();
+  charts.push(new Chart(document.getElementById('catChart'),{type:'bar',
+    data:{labels:cat.map(c=>c[0]),datasets:[
+      {label:'Received',data:cat.map(c=>c[1].rec),backgroundColor:'#08D9D6',stack:'s'},
+      {label:'Outstanding',data:cat.map(c=>c[1].exp-c[1].rec),backgroundColor:'#FF2E63',stack:'s'}]},
+    options:{responsive:true,maintainAspectRatio:false,
+      scales:{x:{stacked:true,grid:{display:false},ticks:{font:{size:10},maxRotation:50,minRotation:30}},
+        y:{stacked:true,ticks:{callback:v=>M(v),font:{size:10}}}},
+      plugins:{legend:{position:'top',labels:{boxWidth:11,font:{size:11}}}}}}));
+  const ch=byChannel();
+  charts.push(new Chart(document.getElementById('chanChart'),{type:'doughnut',
+    data:{labels:ch.map(c=>c[0]),datasets:[{data:ch.map(c=>c[1]),backgroundColor:['#08D9D6','#FF2E63','#252A34','#4ECDC4','#FF6B9D','#556270','#B8B8B8']}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'56%',
+      plugins:{legend:{position:'right',labels:{boxWidth:10,font:{size:11}}}}}}));
+  // source cards + chart
+  const bs=bySource();
+  const sc=document.getElementById('srcCards');
+  if(sc){ sc.innerHTML=Object.entries(bs).map(([k,v])=>`<div class="hc" style="border-left:4px solid ${SOURCE_COLORS[k]||'#888'}"><div class="hc-v">${money(v.rec)}</div><div class="hc-l">${k} · ${v.n} people · ${money(v.exp)} pledged</div></div>`).join(''); }
+  const scEl=document.getElementById('srcChart');
+  if(scEl){ charts.push(new Chart(scEl,{type:'bar',
+    data:{labels:Object.keys(bs),datasets:[
+      {label:'Received',data:Object.values(bs).map(v=>v.rec),backgroundColor:'#08D9D6',stack:'s'},
+      {label:'Outstanding',data:Object.values(bs).map(v=>v.exp-v.rec),backgroundColor:'#FF2E63',stack:'s'}]},
+    options:{responsive:true,maintainAspectRatio:false,
+      scales:{x:{stacked:true,grid:{display:false},ticks:{font:{size:11}}},y:{stacked:true,ticks:{callback:v=>M(v),font:{size:10}}}},
+      plugins:{legend:{position:'top',labels:{boxWidth:11,font:{size:11}}}}}})); }
+  const h=byHandler();
+  charts.push(new Chart(document.getElementById('handChart'),{type:'bar',
+    data:{labels:h.map(x=>x[0]),datasets:[{label:'Received',data:h.map(x=>x[1].rec),backgroundColor:'#08D9D6'},{label:'Outstanding',data:h.map(x=>x[1].exp-x[1].rec),backgroundColor:'#FF2E63'}]},
+    options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,
+      scales:{x:{stacked:true,ticks:{callback:v=>M(v),font:{size:10}}},y:{stacked:true,grid:{display:false},ticks:{font:{size:11}}}},
+      plugins:{legend:{position:'top',labels:{boxWidth:11,font:{size:11}}}}}}));
+}
+/* ===== CONTRIBUTORS ===== */
+let cFilter={q:'',cat:'',status:'',source:''};
+function viewContrib(){
+  const cats=[...new Set(GUESTS.map(g=>g.category))].sort();
+  let rows=GUESTS.filter(g=>isPledger(g)&&tzs(g));
+  if(cFilter.source) rows=rows.filter(g=>(g.source||'Main')===cFilter.source);
+  if(cFilter.q){const q=cFilter.q.toLowerCase(); rows=rows.filter(g=>g.name.toLowerCase().includes(q));}
+  if(cFilter.cat) rows=rows.filter(g=>g.category===cFilter.cat);
+  if(cFilter.status) rows=rows.filter(g=>statusOf(g)===cFilter.status);
+  rows.sort((a,b)=>{let x=a[sortKey],y=b[sortKey]; if(sortKey==='name'){x=x.toLowerCase();y=y.toLowerCase();} if(typeof x==='string')return x<y?-sortDir:x>y?sortDir:0; return (x-y)*sortDir;});
+  const t=totals();
+  const tag=g=>{const s=statusOf(g); return `<span class="tag tag-${s}">${{paid:'Paid ✅',partial:'Partial ☑️',pledged:'Pledged 🟣',none:'—'}[s]}</span>`;};
+  return `
+  <div class="kpi-row">
+    <div class="kpi k-deep"><div class="kpi-lbl">Pledged</div><div class="kpi-val">${money(t.pledged)}</div><div class="kpi-sub">${t.nP} contributors</div></div>
+    <div class="kpi k-teal"><div class="kpi-lbl">Collected</div><div class="kpi-val">${money(t.paid)}</div><div class="kpi-sub pos">${t.pledged?Math.round(t.paid/t.pledged*100):0}%</div></div>
+    <div class="kpi k-coral"><div class="kpi-lbl">Outstanding</div><div class="kpi-val">${money(t.out)}</div><div class="kpi-sub">${t.pendN+t.partN} still owing</div></div>
+  </div>
+  <div class="panel">
+    <div class="controls">
+      <input class="search" placeholder="Search name…" value="${esc(cFilter.q)}" oninput="cFilter.q=this.value;render()">
+      <select onchange="cFilter.cat=this.value;render()"><option value="">All categories</option>${cats.map(c=>`<option ${cFilter.cat===c?'selected':''}>${esc(c)}</option>`).join('')}</select>
+      <select onchange="cFilter.status=this.value;render()"><option value="">All statuses</option>${['paid','partial','pledged'].map(s=>`<option value="${s}" ${cFilter.status===s?'selected':''}>${s}</option>`).join('')}</select>
+      <select onchange="cFilter.source=this.value;render()"><option value="">All sources</option>${SOURCES.filter(s=>s!=='Rwanda').map(s=>`<option value="${s}" ${cFilter.source===s?'selected':''}>${s}</option>`).join('')}</select>
+      ${can.write()?`<button class="btn btn-primary btn-sm" onclick="openEdit()">+ Add contributor</button>`:''}
+      <button class="btn btn-ghost btn-sm" onclick="exportCSV()">Export CSV</button>
+    </div>
+    <div style="overflow-x:auto">
+    <table class="tbl">
+      <thead><tr>
+        <th onclick="setSort('name')">Name</th><th onclick="setSort('category')">Category</th><th onclick="setSort('source')">Source</th>
+        <th onclick="setSort('handler')">Handler</th><th class="num" onclick="setSort('pledged')">Pledged</th>
+        <th class="num" onclick="setSort('paid')">Paid</th><th class="num">Outstanding</th>
+        <th>Status</th>${can.write()?'<th></th>':''}
+      </tr></thead>
+      <tbody>
+      ${rows.map(g=>`<tr>
+        <td><b>${esc(g.name)}</b></td>
+        <td><span class="tag tag-cat">${esc(g.category)}</span></td>
+        <td><span class="tag" style="background:${(SOURCE_COLORS[g.source||'Main'])}22;color:${SOURCE_COLORS[g.source||'Main']}">${esc(g.source||'Main')}</span></td>
+        <td class="muted">${esc(g.handler||'—')}</td>
+        <td class="num">${money(g.pledged)}</td>
+        <td class="num">${money(g.paid)}</td>
+        <td class="num muted">${money((+g.pledged||0)-(+g.paid||0))}</td>
+        <td>${tag(g)}</td>
+        ${can.write()?`<td class="rt"><button class="btn btn-ghost btn-sm" onclick="openEdit(${g.id})">Edit</button></td>`:''}
+      </tr>`).join('')}
+      </tbody>
+    </table>
+    ${rows.length===0?'<p class="muted center" style="padding:20px">No contributors match.</p>':''}
+    </div>
+  </div>`;
+}
+function setSort(k){ if(sortKey===k)sortDir*=-1; else{sortKey=k;sortDir=1;} render(); }
+
+/* ===== GUESTS ===== */
+let gFilter={q:'',cat:'',att:''};
+function viewGuests(){
+  const cats=[...new Set(GUESTS.map(g=>g.category))].sort();
+  let rows=GUESTS.slice();
+  if(gFilter.q){const q=gFilter.q.toLowerCase(); rows=rows.filter(g=>g.name.toLowerCase().includes(q));}
+  if(gFilter.cat) rows=rows.filter(g=>g.category===gFilter.cat);
+  if(gFilter.att) rows=rows.filter(g=>(g.attending||'').toLowerCase().includes(gFilter.att.toLowerCase()));
+  rows.sort((a,b)=>a.name.toLowerCase()<b.name.toLowerCase()?-1:1);
+  const yes=GUESTS.filter(g=>/yes/i.test(g.attending)).length;
+  const no=GUESTS.filter(g=>/no/i.test(g.attending)&&!/yes/i.test(g.attending)).length;
+  return `
+  <div class="kpi-row">
+    <div class="kpi k-deep"><div class="kpi-lbl">Total guests</div><div class="kpi-val">${GUESTS.length}</div><div class="kpi-sub">${cats.length} categories</div></div>
+    <div class="kpi k-teal"><div class="kpi-lbl">Attending</div><div class="kpi-val">${yes}</div><div class="kpi-sub pos">confirmed yes</div></div>
+    <div class="kpi k-coral"><div class="kpi-lbl">Not attending</div><div class="kpi-val">${no}</div><div class="kpi-sub">declined / no</div></div>
+    <div class="kpi k-butter"><div class="kpi-lbl">Pledgers</div><div class="kpi-val">${GUESTS.filter(isPledger).length}</div><div class="kpi-sub">have pledged</div></div>
+  </div>
+  <div class="panel">
+    <div class="controls">
+      <input class="search" placeholder="Search guest…" value="${esc(gFilter.q)}" oninput="gFilter.q=this.value;render()">
+      <select onchange="gFilter.cat=this.value;render()"><option value="">All categories</option>${cats.map(c=>`<option ${gFilter.cat===c?'selected':''}>${esc(c)}</option>`).join('')}</select>
+      <select onchange="gFilter.att=this.value;render()"><option value="">Any attendance</option><option value="yes">Attending</option><option value="no">Not attending</option></select>
+    </div>
+    <div style="overflow-x:auto">
+    <table class="tbl">
+      <thead><tr><th>Name</th><th>Category</th><th>Handler</th><th>Attending</th><th>Status</th><th class="num">Pledged</th></tr></thead>
+      <tbody>${rows.map(g=>`<tr>
+        <td><b>${esc(g.name)}</b></td><td><span class="tag tag-cat">${esc(g.category)}</span></td>
+        <td><span class="tag" style="background:${(SOURCE_COLORS[g.source||'Main'])}22;color:${SOURCE_COLORS[g.source||'Main']}">${esc(g.source||'Main')}</span></td>
+        <td class="muted">${esc(g.handler||'—')}</td><td class="muted">${esc(g.attending||'—')}</td>
+        <td class="muted">${esc(g.status||'—')}</td><td class="num">${(+g.pledged||0)?money(g.pledged):'<span class="muted">—</span>'}</td>
+      </tr>`).join('')}</tbody>
+    </table>
+    </div>
+  </div>`;
+}
+
+
+/* ===== RWANDA (RWF + USD) ===== */
+let rFilter={q:''};
+function curBlock(cur,accent){
+  const t=curTotals(cur); const sym=CUR_SYM[cur];
+  const fr=n=>Number(n||0).toLocaleString('en-US');
+  const rows=t.rows.filter(g=>!rFilter.q||g.name.toLowerCase().includes(rFilter.q.toLowerCase()))
+    .sort((a,b)=>a.name.toLowerCase()<b.name.toLowerCase()?-1:1);
+  const tag=g=>{const s=statusOf(g); return `<span class="tag tag-${s}">${{paid:'Paid ✅',partial:'Partial ☑️',pledged:'Pledged 🟣',none:'—'}[s]}</span>`;};
+  const pct=t.pledged?Math.round(t.paid/t.pledged*100):0;
+  return `
+  <div class="panel" style="border-top:4px solid ${accent}">
+    <div class="panel-h"><h3>${cur==='RWF'?'Rwandan Francs':'US Dollars'} <span style="color:${accent}">(${sym})</span></h3>
+      <span class="sub">${t.n} contributors · ${pct}% collected</span></div>
+    <div class="hcard" style="margin-bottom:14px">
+      <div class="hc" style="border-left:4px solid ${accent}"><div class="hc-v">${sym} ${fr(t.pledged)}</div><div class="hc-l">pledged</div></div>
+      <div class="hc" style="border-left:4px solid #08D9D6"><div class="hc-v">${sym} ${fr(t.paid)}</div><div class="hc-l">collected</div></div>
+      <div class="hc" style="border-left:4px solid #FF2E63"><div class="hc-v">${sym} ${fr(t.out)}</div><div class="hc-l">outstanding</div></div>
+      <div class="hc"><div class="hc-v">${t.paidN}·${t.partN}·${t.pendN}</div><div class="hc-l">paid·partial·waiting</div></div>
+    </div>
+    ${can.write()?`<button class="btn btn-primary btn-sm" onclick="openEditCur('${cur}')" style="margin-bottom:12px">+ Add ${cur} contributor</button>`:''}
+    ${rows.length? `<div style="overflow-x:auto"><table class="tbl">
+      <thead><tr><th>Name</th><th>Handler</th><th class="num">Pledged</th><th class="num">Paid</th><th class="num">Outstanding</th><th>Status</th>${can.write()?'<th></th>':''}</tr></thead>
+      <tbody>${rows.map(g=>`<tr><td><b>${esc(g.name)}</b></td><td class="muted">${esc(g.handler||'—')}</td>
+        <td class="num">${fr(g.pledged)}</td><td class="num">${fr(g.paid)}</td><td class="num muted">${fr((+g.pledged||0)-(+g.paid||0))}</td>
+        <td>${tag(g)}</td>${can.write()?`<td class="rt"><button class="btn btn-ghost btn-sm" onclick="openEdit(${g.id})">Edit</button></td>`:''}</tr>`).join('')}</tbody>
+    </table></div>`
+    : `<p class="muted center" style="padding:22px 0">No ${cur} contributors yet.</p>`}
+  </div>`;
+}
+function viewRwanda(){
+  const r=curTotals('RWF'), u=curTotals('USD');
+  return `
+  <div class="banner" style="background:#FFE0E8;border-color:#FF2E63"><span>❋</span><div>The <b>Rwanda team collects in RWF and USD</b> — each currency is tracked on its own and <b>never</b> mixed with each other or with the Tanzanian (TZS) totals. Three currencies, three separate tallies.</div></div>
+  <div class="kpi-row">
+    <div class="kpi k-coral"><div class="kpi-lbl">RWF collected</div><div class="kpi-val" style="font-size:22px">RWF ${Number(r.paid).toLocaleString()}</div><div class="kpi-sub">${r.n} people · ${r.pledged?Math.round(r.paid/r.pledged*100):0}%</div></div>
+    <div class="kpi k-teal"><div class="kpi-lbl">USD collected</div><div class="kpi-val" style="font-size:22px">$ ${Number(u.paid).toLocaleString()}</div><div class="kpi-sub">${u.n} people · ${u.pledged?Math.round(u.paid/u.pledged*100):0}%</div></div>
+    <div class="kpi k-deep"><div class="kpi-lbl">Currencies</div><div class="kpi-val" style="font-size:22px">RWF · USD</div><div class="kpi-sub">kept separate</div></div>
+  </div>
+  <div class="controls"><input class="search" placeholder="Search Rwanda contributor…" value="${esc(rFilter.q)}" oninput="rFilter.q=this.value;render()"></div>
+  ${curBlock('RWF','#FF2E63')}
+  ${curBlock('USD','#08D9D6')}`;
+}
+function drawRwandaChart(){}
+function openEditCur(cur){ openEdit(); setTimeout(()=>{const s=document.getElementById('eCur');if(s)s.value=cur;const src=document.getElementById('eSrc');if(src)src.value='Rwanda';},30); }
+
+/* ===== BUDGET ===== */
+function viewBudget(){
+  const b=budgetTotals(), t=totals();
+  const items=SPEND.filter(s=>!/damage|total|michango|gap|case/i.test(s.item)&&(+s.budget||0)>0);
+  return `
+  <div class="kpi-row">
+    <div class="kpi k-deep"><div class="kpi-lbl">Total event cost</div><div class="kpi-val">${money(b.totalCost)}</div><div class="kpi-sub">the "damage"</div></div>
+    <div class="kpi k-teal"><div class="kpi-lbl">Pledged so far</div><div class="kpi-val">${money(t.pledged)}</div><div class="kpi-sub">${Math.round(t.pledged/b.totalCost*100)}% of cost</div></div>
+    <div class="kpi k-coral"><div class="kpi-lbl">Gap (best case)</div><div class="kpi-val">${money(b.gapBest)}</div><div class="kpi-sub">if all pledges land</div></div>
+    <div class="kpi k-butter"><div class="kpi-lbl">Gap (worst case)</div><div class="kpi-val">${money(b.gapWorst)}</div><div class="kpi-sub neg">on cash in hand</div></div>
+  </div>
+  <div class="panel"><div class="panel-h"><h3>Funding vs cost</h3><span class="sub">how far pledges & cash cover the ${M(b.totalCost)} bill</span></div>
+    <div class="chart-wrap sm"><canvas id="budgetChart"></canvas></div></div>
+  ${items.length?`<div class="panel"><div class="panel-h"><h3>Spend breakdown</h3></div>
+    <table class="tbl"><thead><tr><th>Item</th><th class="num">Budget</th><th class="num">Spent</th></tr></thead>
+    <tbody>${items.map(s=>`<tr><td>${esc(s.item)}</td><td class="num">${money(s.budget)}</td><td class="num muted">${money(s.spent)}</td></tr>`).join('')}</tbody></table></div>`:''}`;
+}
+function drawBudgetChart(){ if(typeof Chart==="undefined"){_noChart("budgetChart");return;}
+  const b=budgetTotals(),t=totals();
+  charts.push(new Chart(document.getElementById('budgetChart'),{type:'bar',
+    data:{labels:['Event cost','Pledged','Collected'],datasets:[{data:[b.totalCost,t.pledged,t.paid],
+      backgroundColor:['#252A34','#FF2E63','#08D9D6']}]},
+    options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,
+      scales:{x:{ticks:{callback:v=>M(v),font:{size:10}}},y:{grid:{display:false},ticks:{font:{size:12}}}},
+      plugins:{legend:{display:false}}}}));
+}
+/* ===== DISPATCHER ===== */
+function viewDispatch(){
+  const t=whatsappTotals();
+  const pct=t.pledged?Math.round(t.paid/t.pledged*100):0;
+  return `
+  <div class="panel">
+    <div class="panel-h"><h3>WhatsApp progress message</h3><span class="sub">${t.nP} WhatsApp-tagged contributors only</span></div>
+    <p class="mini" style="margin-bottom:12px">This message includes <b>only the ${t.nP} people tagged as source = WhatsApp</b> (the list your sister tracks). Main-list and Rwanda contributors are excluded. WhatsApp can't post to groups automatically — copy this and send it yourself.</p>
+    <div class="hcard" style="margin-bottom:14px">
+      <div class="hc"><div class="hc-v">${money(t.paid)}</div><div class="hc-l">collected (${pct}%)</div></div>
+      <div class="hc"><div class="hc-v">${money(t.pledged)}</div><div class="hc-l">pledged</div></div>
+      <div class="hc"><div class="hc-v">${t.paidN}·${t.partN}·${t.pendN}</div><div class="hc-l">paid·partial·waiting</div></div>
+    </div>
+    ${t.nP===0?'<div class="banner">No contributors are tagged as WhatsApp yet. Tag people with source = WhatsApp in Contributors, and they\'ll appear here.</div>':''}
+    <textarea id="dispMsg" style="width:100%;height:300px;padding:14px;border:1px solid var(--line);border-radius:11px;font-family:monospace;font-size:12px;background:var(--cream);color:var(--ink)" readonly>${esc(buildDispatch())}</textarea>
+    <div style="display:flex;gap:10px;margin-top:12px">
+      <button class="btn btn-primary" onclick="copyDisp()">Copy message</button>
+      <button class="btn btn-ghost" onclick="waShare()">Open WhatsApp</button>
+    </div>
+  </div>`;
+}
+function whatsappList(){
+  return GUESTS.filter(g=>isPledger(g)&&tzs(g)&&(g.source||'Main')==='WhatsApp');
+}
+function whatsappTotals(){
+  const pl=whatsappList();
+  const pledged=pl.reduce((s,g)=>s+(+g.pledged||0),0);
+  const paid=pl.reduce((s,g)=>s+(+g.paid||0),0);
+  return {pledged,paid,out:pledged-paid,nP:pl.length,
+    paidN:pl.filter(g=>statusOf(g)==='paid').length,
+    partN:pl.filter(g=>statusOf(g)==='partial').length,
+    pendN:pl.filter(g=>statusOf(g)==='pledged').length};
+}
+function buildDispatch(){
+  const t=whatsappTotals();
+  const pct=t.pledged?Math.round(t.paid/t.pledged*100):0;
+  const pl=whatsappList().sort((a,b)=>a.name.toLowerCase()<b.name.toLowerCase()?-1:1);
+  let s=`*Taarifa ya Mchango — Harusi ya Arnold Bukangwa (22 Aug 2026)*\n\n`;
+  s+=`Jumla iliyokusanywa: *TZS ${money(t.paid)}* kati ya ${money(t.pledged)} (${pct}%)\n`;
+  s+=`Wamemaliza: ${t.paidN} · Sehemu: ${t.partN} · Wanaosubiri: ${t.pendN}\n\n`;
+  s+=`*Orodha kamili:*\n🟣 Ahadi · ☑️ Amepunguza · ✅ Amemaliza\n\n`;
+  pl.forEach((g,i)=>{
+    const st=statusOf(g); const mk=st==='paid'?'✅':st==='partial'?`☑️ (${money(g.paid)})`:'🟣';
+    s+=`${i+1}. ${g.name} ${money(g.pledged)}/- ${mk}\n`;
+  });
+  s+=`\n*Malipo:*\n${PAY.bank}\n${PAY.mixx}\n${PAY.selcom}\nJina: ${PAY.name}`;
+  return s;
+}
+function copyDisp(){ const el=document.getElementById('dispMsg'); el.select(); navigator.clipboard.writeText(el.value).then(()=>toast('Message copied')); }
+function waShare(){ window.open('https://wa.me/?text='+encodeURIComponent(buildDispatch()),'_blank'); }
+
+/* ===== ADMIN ===== */
+function viewAdmin(){
+  const t=totals();
+  return `
+  <div class="banner"><span>ℹ</span><div>You're the super admin. In live mode, user accounts are created in the Supabase dashboard (Auth → Users), then a matching row is added to the <b>profiles</b> table with their role. This app can't create logins directly for security reasons.</div></div>
+  <div class="panel"><div class="panel-h"><h3>Data health</h3></div>
+    <div class="hcard">
+      <div class="hc"><div class="hc-v">${GUESTS.length}</div><div class="hc-l">guest rows</div></div>
+      <div class="hc"><div class="hc-v">${t.nP}</div><div class="hc-l">pledgers</div></div>
+      <div class="hc"><div class="hc-v">${money(t.pledged)}</div><div class="hc-l">total pledged</div></div>
+      <div class="hc"><div class="hc-v">${new Set(GUESTS.map(g=>g.name.trim().toLowerCase())).size}</div><div class="hc-l">unique names</div></div>
+    </div>
+    ${dupWarn()}
+  </div>
+  <div class="panel"><div class="panel-h"><h3>Reconcile vs 90-list</h3><span class="sub">the committee's authoritative total</span></div>
+    <p class="mini">Authoritative committee total: <b>27,420,000</b> across 90 people. This dataset: <b>${money(t.pledged)}</b> across ${t.nP}. Difference: <b>${money(Math.abs(t.pledged-27420000))}</b>. Use Contributors → filter & edit to align them, then export.</p>
+  </div>
+  <div class="panel"><div class="panel-h"><h3>Export</h3></div>
+    <div style="display:flex;gap:10px"><button class="btn btn-ghost" onclick="exportCSV()">Contributors CSV</button><button class="btn btn-ghost" onclick="exportJSON()">Full backup JSON</button></div>
+  </div>`;
+}
+function dupWarn(){
+  const seen={},dups=[];
+  GUESTS.forEach(g=>{const k=g.name.trim().toLowerCase().replace(/\s+/g,''); if(seen[k])dups.push(g.name); else seen[k]=1;});
+  if(!dups.length) return '<p class="mini" style="margin-top:12px;color:var(--teal)">✓ No duplicate names detected.</p>';
+  return `<p class="mini" style="margin-top:12px;color:var(--coral)">⚠ Possible duplicates: ${dups.map(esc).join(', ')}</p>`;
+}
+
+/* ===== EDIT MODAL ===== */
+function openEdit(id){
+  const g=id?GUESTS.find(x=>x.id===id):{name:'',category:'Uncategorized',handler:'',attending:'',pledged:0,paid:0,channel:''};
+  const cats=[...new Set(GUESTS.map(x=>x.category))].sort();
+  document.getElementById('modalHost').innerHTML=`
+  <div class="modal-bg" onclick="if(event.target===this)closeModal()">
+    <div class="modal">
+      <h3>${id?'Edit':'Add'} contributor</h3>
+      <div class="field"><label>Name</label><input id="eName" value="${esc(g.name)}"></div>
+      <div class="grid-2" style="gap:12px">
+        <div class="field"><label>Category</label><input id="eCat" list="catList" value="${esc(g.category)}"><datalist id="catList">${cats.map(c=>`<option>${esc(c)}</option>`).join('')}</datalist></div>
+        <div class="field"><label>Handler</label><select id="eHand"><option value="">—</option>${['Arnold','Mom','Dad','Irene','Dre'].map(h=>`<option ${g.handler===h?'selected':''}>${h}</option>`).join('')}</select></div>
+      </div>
+      <div class="grid-2" style="gap:12px">
+        <div class="field"><label>Source list</label><select id="eSrc">${SOURCES.map(s=>`<option ${(g.source||'Main')===s?'selected':''}>${s}</option>`).join('')}</select></div>
+        <div class="field"><label>Currency</label><select id="eCur"><option ${(g.currency||'TZS')==='TZS'?'selected':''}>TZS</option><option ${g.currency==='RWF'?'selected':''}>RWF</option><option ${g.currency==='USD'?'selected':''}>USD</option></select></div>
+      </div>
+      <div class="grid-2" style="gap:12px">
+        <div class="field"><label>Pledged (TZS)</label><input id="ePl" type="number" value="${+g.pledged||0}"></div>
+        <div class="field"><label>Paid (TZS)</label><input id="ePd" type="number" value="${+g.paid||0}"></div>
+      </div>
+      <div class="grid-2" style="gap:12px">
+        <div class="field"><label>Channel</label><select id="eCh"><option value="">—</option>${['Irene','CRDB','Voda','Selcom','Ukumbi','MC','Stanbic','Mixx'].map(c=>`<option ${g.channel===c?'selected':''}>${c}</option>`).join('')}</select></div>
+        <div class="field"><label>Attending</label><input id="eAtt" value="${esc(g.attending||'')}"></div>
+      </div>
+      <div class="modal-foot">
+        ${id&&can.admin()?`<button class="btn btn-ghost" style="color:var(--coral);margin-right:auto" onclick="delGuest(${id})">Delete</button>`:''}
+        <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveEdit(${id||0})">Save</button>
+      </div>
+    </div>
+  </div>`;
+}
+function closeModal(){ document.getElementById('modalHost').innerHTML=''; }
+async function saveEdit(id){
+  const g={ name:document.getElementById('eName').value.trim(), category:document.getElementById('eCat').value.trim()||'Uncategorized',
+    handler:document.getElementById('eHand').value, pledged:+document.getElementById('ePl').value||0,
+    paid:+document.getElementById('ePd').value||0, channel:document.getElementById('eCh').value, attending:document.getElementById('eAtt').value.trim(), source:document.getElementById('eSrc').value, currency:document.getElementById('eCur').value };
+  if(!g.name){ toast('Name required'); return; }
+  if(g.paid>g.pledged) g.paid=g.pledged;
+  if(id) g.id=id;
+  try{ await saveGuest(g); closeModal(); buildNav(); render(); toast('Saved'); }
+  catch(e){ toast('Error: '+(e.message||e)); }
+}
+async function delGuest(id){
+  if(!confirm('Delete this contributor?')) return;
+  try{ await deleteGuest(id); closeModal(); buildNav(); render(); toast('Deleted'); }
+  catch(e){ toast('Error: '+(e.message||e)); }
+}
+
+/* ===== EXPORT ===== */
+function exportCSV(){
+  const pl=GUESTS.filter(isPledger);
+  const rows=[['Name','Category','Handler','Pledged','Paid','Outstanding','Status','Channel']];
+  pl.forEach(g=>rows.push([g.name,g.category,g.handler,g.pledged,g.paid,(+g.pledged-+g.paid),statusOf(g),g.channel]));
+  const csv=rows.map(r=>r.map(c=>`"${String(c==null?'':c).replace(/"/g,'""')}"`).join(',')).join('\n');
+  dl(csv,'mchango_contributors.csv','text/csv');
+}
+function exportJSON(){ dl(JSON.stringify({guests:GUESTS,spend:SPEND},null,2),'mchango_backup.json','application/json'); }
+function dl(content,name,type){ const b=new Blob([content],{type}); const u=URL.createObjectURL(b); const a=document.createElement('a'); a.href=u; a.download=name; a.click(); URL.revokeObjectURL(u); }
+
+/* ===== TOAST ===== */
+function toast(msg){ let el=document.getElementById('toast'); if(!el){el=document.createElement('div');el.id='toast';el.style.cssText='position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--deep);color:#fff;padding:11px 20px;border-radius:11px;font-size:13px;z-index:200;box-shadow:0 8px 30px rgba(0,0,0,.25)';document.body.appendChild(el);} el.textContent=msg; el.style.opacity='1'; clearTimeout(el._t); el._t=setTimeout(()=>el.style.opacity='0',1800); }
+
+/* ===== BOOT ===== */
+(async function(){ await initData();
+  if(LIVE){ document.getElementById('demoRoles').classList.add('hidden'); document.getElementById('loginNote').textContent='Sign in with your committee account.'; }
+})();
+</script>
+</body></html>
