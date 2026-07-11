@@ -19,10 +19,9 @@ h1,h2,h3{font-weight:600;letter-spacing:-.01em}
 .hidden{display:none!important}
 button{font-family:inherit;cursor:pointer;border:none;background:none}
 input,select{font-family:inherit}
-<style>
 /* layout */
 .app{display:flex;height:100vh;overflow:hidden}
-.sidebar{width:230px;background:#252A34;color:#EAF6F4;flex-shrink:0;display:flex;flex-direction:column;height:100vh;transition:width .2s}
+.sidebar{width:230px;background:#252A34;color:#EAF6F4;flex-shrink:0;display:flex;flex-direction:column;height:100vh;overflow-y:auto;transition:width .2s}
 .sidebar.collapsed{width:64px}
 .sb-brand{padding:20px 18px;display:flex;align-items:center;gap:11px;border-bottom:1px solid rgba(255,255,255,.08)}
 .sb-logo{width:34px;height:34px;border-radius:9px;background:#08D9D6;display:flex;align-items:center;justify-content:center;font-weight:700;color:var(--deep);flex-shrink:0;font-size:15px}
@@ -49,7 +48,8 @@ input,select{font-family:inherit}
 .btn-ghost{background:var(--card);border-color:var(--line);color:var(--ink)}
 .btn-ghost:hover{border-color:var(--teal);color:var(--teal)}
 .btn-sm{padding:5px 10px;font-size:12px}
-.content{padding:24px 26px;flex:1;max-width:1240px;width:100%;overflow-y:auto}
+.content{padding:24px 26px;flex:1;width:100%;overflow-y:auto}
+.content-inner{max-width:1600px;margin:0 auto;width:100%}
 /* KPI cards */
 .kpi-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:22px}
 .kpi{background:var(--card);border-radius:15px;padding:17px 19px;box-shadow:var(--shadow);border:1px solid var(--line);position:relative;overflow:hidden}
@@ -119,7 +119,7 @@ input,select{font-family:inherit}
 .hcard .hc{flex:1;min-width:130px;background:var(--cream);border-radius:11px;padding:13px 15px;border:1px solid var(--line)}
 .hc-v{font-size:19px;font-weight:700}
 .hc-l{font-size:11.5px;color:var(--muted)}
-@media(max-width:680px){.sidebar{position:fixed;z-index:50;left:0;top:0;box-shadow:8px 0 30px rgba(0,0,0,.2)}.sidebar.collapsed{width:0;overflow:hidden}.main{width:100%}.content{padding:16px}}
+@media(max-width:680px){.sidebar{position:fixed;top:0;left:0;z-index:50;height:100vh;box-shadow:8px 0 30px rgba(0,0,0,.2)}.sidebar.collapsed{width:0;min-width:0;overflow:hidden}.content{padding:16px}}
 </style>
 </head><body>
 <!-- LOGIN -->
@@ -269,7 +269,6 @@ const NAV=[
   {id:'rwanda',ico:'❋',label:'Rwanda (RWF/USD)',min:1},
   {id:'budget',ico:'▤',label:'Budget & spend',min:1},
   {id:'dispatch',ico:'✎',label:'Dispatcher',min:2,disp:true},
-  {id:'review',ico:'⇊',label:'Review pledges',min:2},
   {id:'admin',ico:'⚙',label:'Admin',min:3},
 ];
 function buildNav(){
@@ -287,81 +286,11 @@ function buildNav(){
 }
 function go(v){ curView=v; document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));
   buildNav();
-  const titles={dash:'Dashboard',contrib:'Contributors',guests:'Guest list',rwanda:'Rwanda (RWF & USD)',budget:'Budget & spend',dispatch:'Dispatcher',review:'Review pledges',admin:'Admin'};
+  const titles={dash:'Dashboard',contrib:'Contributors',guests:'Guest list',rwanda:'Rwanda (RWF & USD)',budget:'Budget & spend',dispatch:'Dispatcher',admin:'Admin'};
   document.getElementById('viewTitle').textContent=titles[v]||v;
   if(window.innerWidth<680) document.getElementById('sidebar').classList.add('collapsed');
   render();
 }
-
-/* ===== PUBLIC PLEDGE SUBMISSIONS (review queue) ===== */
-let SUBMISSIONS=[];
-async function loadSubmissions(){
-  if(LIVE){
-    const {data,error}=await sb.from('pledge_submissions').select('*').order('created_at',{ascending:false});
-    SUBMISSIONS = error?[]:(data||[]);
-  } else {
-    // demo seed
-    SUBMISSIONS = JSON.parse(localStorage.getItem('mc_subs')||'[]');
-    if(!SUBMISSIONS.length){
-      SUBMISSIONS=[
-        {id:1,name:'Jane Mukama',phone:'0788123456',amount:150000,currency:'RWF',status:'pending',created_at:new Date().toISOString()},
-        {id:2,name:'Peter Anderson',phone:'0715999888',amount:200000,currency:'TZS',status:'pending',created_at:new Date().toISOString()}
-      ];
-      localStorage.setItem('mc_subs',JSON.stringify(SUBMISSIONS));
-    }
-  }
-  if(curView==='review') document.getElementById('content').innerHTML=viewReview();
-}
-function viewReview(){
-  const pend=SUBMISSIONS.filter(s=>s.status==='pending');
-  const done=SUBMISSIONS.filter(s=>s.status!=='pending').slice(0,20);
-  const fr=n=>Number(n||0).toLocaleString('en-US');
-  const sym={TZS:'TZS',RWF:'RWF',USD:'$'};
-  return `
-  <div class="banner"><span>⇊</span><div>Pledges submitted through the <b>public form</b> land here first. Review each one, then <b>Approve</b> to add it to the contributor list, or <b>Reject</b> to discard. Nothing enters your totals until you approve it.</div></div>
-  <div class="panel">
-    <div class="panel-h"><h3>Pending review</h3><span class="sub">${pend.length} waiting</span></div>
-    ${pend.length? `<div style="overflow-x:auto"><table class="tbl">
-      <thead><tr><th>Name</th><th>Phone</th><th class="num">Amount</th><th>Currency</th><th>Submitted</th><th></th></tr></thead>
-      <tbody>${pend.map(s=>`<tr>
-        <td><b>${esc(s.name)}</b></td><td class="muted">${esc(s.phone||'—')}</td>
-        <td class="num">${fr(s.amount)}</td><td><span class="tag tag-cat">${esc(s.currency)}</span></td>
-        <td class="muted mini">${new Date(s.created_at).toLocaleDateString()}</td>
-        <td class="rt" style="white-space:nowrap">
-          <button class="btn btn-primary btn-sm" onclick="approveSub(${s.id})">Approve</button>
-          <button class="btn btn-ghost btn-sm" style="color:var(--coral)" onclick="rejectSub(${s.id})">Reject</button>
-        </td></tr>`).join('')}</tbody>
-    </table></div>` : '<p class="muted center" style="padding:26px 0">No pending pledges. New submissions from the public form will appear here.</p>'}
-  </div>
-  ${done.length?`<div class="panel"><div class="panel-h"><h3>Recently processed</h3></div>
-    <table class="tbl"><thead><tr><th>Name</th><th class="num">Amount</th><th>Currency</th><th>Result</th></tr></thead>
-    <tbody>${done.map(s=>`<tr><td>${esc(s.name)}</td><td class="num">${fr(s.amount)}</td><td>${esc(s.currency)}</td>
-      <td><span class="tag ${s.status==='approved'?'tag-paid':'tag-none'}">${s.status}</span></td></tr>`).join('')}</tbody></table></div>`:''}`;
-}
-async function approveSub(id){
-  const s=SUBMISSIONS.find(x=>x.id===id); if(!s) return;
-  const src = s.currency==='TZS' ? 'WhatsApp' : 'Rwanda';
-  const g={name:s.name,category:s.currency==='TZS'?'Uncategorized':'Kigali',handler:s.currency==='TZS'?'':'Dre',
-    attending:'',pledged:s.amount,paid:0,channel:'',source:src,currency:s.currency,phone:s.phone||''};
-  try{
-    await saveGuest(g);
-    if(LIVE){ await sb.from('pledge_submissions').update({status:'approved'}).eq('id',id); }
-    s.status='approved';
-    if(!LIVE) localStorage.setItem('mc_subs',JSON.stringify(SUBMISSIONS));
-    buildNav(); document.getElementById('content').innerHTML=viewReview(); toast('Approved & added to '+src+' list');
-  }catch(e){ toast('Error: '+(e.message||e)); }
-}
-async function rejectSub(id){
-  const s=SUBMISSIONS.find(x=>x.id===id); if(!s) return;
-  if(!confirm('Reject this pledge submission?')) return;
-  try{
-    if(LIVE){ await sb.from('pledge_submissions').update({status:'rejected'}).eq('id',id); }
-    s.status='rejected';
-    if(!LIVE) localStorage.setItem('mc_subs',JSON.stringify(SUBMISSIONS));
-    document.getElementById('content').innerHTML=viewReview(); toast('Rejected');
-  }catch(e){ toast('Error: '+(e.message||e)); }
-}
-
 /* ===== RENDER ROUTER ===== */
 function _noChart(id){var el=document.getElementById(id);if(el){var w=el.closest('.chart-wrap');if(w)w.innerHTML='<p style="color:var(--muted);font-size:12px;text-align:center;padding:40px 0">Chart needs internet connection to load.</p>';}}
 let charts=[];
@@ -375,7 +304,6 @@ function render(){
   else if(curView==='rwanda') c.innerHTML=viewRwanda();
   else if(curView==='budget') c.innerHTML=viewBudget();
   else if(curView==='dispatch') c.innerHTML=viewDispatch();
-  else if(curView==='review'){ c.innerHTML='<div class="panel"><p class="muted">Loading submissions…</p></div>'; loadSubmissions(); }
   else if(curView==='admin') c.innerHTML=viewAdmin();
   if(curView==='dash') drawDashCharts();
   if(curView==='rwanda') drawRwandaChart();
