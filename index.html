@@ -225,8 +225,9 @@ function persist(){ if(!LIVE){ localStorage.setItem('mc_guests',JSON.stringify(G
 
 async function saveGuest(g){
   if(LIVE){
-    if(g.id){ const {error}=await sb.from('guests').update(g).eq('id',g.id); if(error)throw error; }
-    else { const {data,error}=await sb.from('guests').insert(g).select().single(); if(error)throw error; g.id=data.id; }
+    if(g.id){ const {error}=await sb.from('guests').update(g).eq('id',g.id); if(error)throw error;
+      const i=GUESTS.findIndex(x=>x.id===g.id); if(i>=0) GUESTS[i]=g; }
+    else { const {data,error}=await sb.from('guests').insert(g).select().single(); if(error)throw error; g.id=data.id; GUESTS.push(Object.assign(g,data)); }
   } else {
     if(g.id){ const i=GUESTS.findIndex(x=>x.id===g.id); GUESTS[i]=g; }
     else { g.id=Math.max(0,...GUESTS.map(x=>x.id))+1; GUESTS.push(g); }
@@ -269,7 +270,7 @@ const NAV=[
   {id:'dash',ico:'◧',label:'Dashboard',min:1},
   {id:'contrib',ico:'❑',label:'Contributors',min:1},
   {id:'guests',ico:'☷',label:'Guest list',min:1},
-  {id:'rwanda',ico:'❋',label:'Rwanda (RWF/USD)',min:1},
+  {id:'rwanda',ico:'❋',label:'Rwanda (RWF)',min:1},
   {id:'budget',ico:'▤',label:'Budget & spend',min:1},
   {id:'dispatch',ico:'✎',label:'Dispatcher',min:2,disp:true},
   {id:'review',ico:'⇊',label:'Review pledges',min:2},
@@ -287,11 +288,11 @@ function buildNav(){
     b.onclick=()=>go(n.id);
     nav.appendChild(b);
   });
-  document.getElementById('sbFoot').innerHTML=`${GUESTS.length} guests · ${GUESTS.filter(isPledger).length} pledgers<br><span style="opacity:.45;font-size:10px">v20260711-1250</span>`;
+  document.getElementById('sbFoot').innerHTML=`${GUESTS.length} guests · ${GUESTS.filter(isPledger).length} pledgers<br><span style="opacity:.45;font-size:10px">v20260711-1343</span>`;
 }
 function go(v){ curView=v; document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));
   buildNav();
-  const titles={dash:'Dashboard',contrib:'Contributors',guests:'Guest list',rwanda:'Rwanda (RWF & USD)',budget:'Budget & spend',dispatch:'Dispatcher',review:'Review pledges',admin:'Admin'};
+  const titles={dash:'Dashboard',contrib:'Contributors',guests:'Guest list',rwanda:'Rwanda (RWF)',budget:'Budget & spend',dispatch:'Dispatcher',review:'Review pledges',admin:'Admin'};
   document.getElementById('viewTitle').textContent=titles[v]||v;
   if(window.innerWidth<680) document.getElementById('sidebar').classList.add('collapsed');
   render();
@@ -328,8 +329,10 @@ function viewReview(){
       <tbody>${pend.map(s=>`<tr><td><b>${esc(s.name)}</b></td><td class="muted">${esc(s.phone||'—')}</td>
         <td class="num">${fr(s.amount)}</td><td><span class="tag tag-cat">${esc(s.currency)}</span></td>
         <td class="muted mini">${new Date(s.created_at).toLocaleDateString()}</td>
-        <td class="rt" style="white-space:nowrap"><button class="btn btn-primary btn-sm" onclick="approveSub(${s.id})">Approve</button>
-          <button class="btn btn-ghost btn-sm" style="color:var(--coral)" onclick="rejectSub(${s.id})">Reject</button></td></tr>`).join('')}</tbody>
+        <td class="rt" style="white-space:nowrap">
+          <button class="btn btn-ghost btn-sm" onclick="approveSub(${s.id},false)" title="They pledged but haven't paid yet">✓ Pledged</button>
+          <button class="btn btn-primary btn-sm" onclick="approveSub(${s.id},true)" title="Money already received">✓ Paid</button>
+          <button class="btn btn-ghost btn-sm" style="color:var(--coral)" onclick="rejectSub(${s.id})">✕</button></td></tr>`).join('')}</tbody>
     </table></div>`:'<p class="muted center" style="padding:26px 0">No pending pledges. New submissions from the public form appear here.</p>'}
   </div>
   ${done.length?`<div class="panel"><div class="panel-h"><h3>Recently processed</h3></div>
@@ -337,15 +340,15 @@ function viewReview(){
     <tbody>${done.map(s=>`<tr><td>${esc(s.name)}</td><td class="num">${fr(s.amount)}</td><td>${esc(s.currency)}</td>
       <td><span class="tag ${s.status==='approved'?'tag-paid':'tag-none'}">${s.status}</span></td></tr>`).join('')}</tbody></table></div>`:''}`;
 }
-async function approveSub(id){
+async function approveSub(id,asPaid){
   const s=SUBMISSIONS.find(x=>x.id===id); if(!s) return;
   const src=s.currency==='TZS'?'WhatsApp':'Rwanda';
   const g={name:s.name,category:s.currency==='TZS'?'Uncategorized':'Kigali',handler:s.currency==='TZS'?'':'Dre',
-    attending:'',pledged:s.amount,paid:0,channel:'',source:src,currency:s.currency,phone:s.phone||''};
+    attending:'',pledged:s.amount,paid:asPaid?s.amount:0,channel:'',source:src,currency:s.currency,phone:s.phone||''};
   try{ await saveGuest(g);
     if(LIVE){ await sb.from('pledge_submissions').update({status:'approved'}).eq('id',id); }
     s.status='approved'; if(!LIVE) localStorage.setItem('mc_subs',JSON.stringify(SUBMISSIONS));
-    refreshPendingCount(); buildNav(); document.getElementById('content').innerHTML=viewReview(); toast('Approved & added to '+src+' list');
+    refreshPendingCount(); buildNav(); document.getElementById('content').innerHTML=viewReview(); toast('Added to '+src+' list'+(asPaid?' as PAID':' as pledged'));
   }catch(e){ toast('Error: '+(e.message||e)); }
 }
 async function rejectSub(id){
@@ -386,6 +389,14 @@ function render(){
   if(curView==='dash') drawDashCharts();
   if(curView==='rwanda') drawRwandaChart();
   if(curView==='budget') drawBudgetChart();
+}
+// Re-render while keeping focus + cursor in the active search box (fixes cursor-loss on typing)
+function searchInput(el, assign){
+  assign(el.value);
+  const pos=el.selectionStart;
+  render();
+  const again=document.querySelector('.search');
+  if(again){ again.focus(); try{ again.setSelectionRange(pos,pos); }catch(e){} }
 }
 
 /* ===== TOTALS ===== */
@@ -517,7 +528,7 @@ function viewContrib(){
   </div>
   <div class="panel">
     <div class="controls">
-      <input class="search" placeholder="Search name…" value="${esc(cFilter.q)}" oninput="cFilter.q=this.value;render()">
+      <input class="search" placeholder="Search name…" value="${esc(cFilter.q)}" oninput="searchInput(this,v=>cFilter.q=v)">
       <select onchange="cFilter.cat=this.value;render()"><option value="">All categories</option>${cats.map(c=>`<option ${cFilter.cat===c?'selected':''}>${esc(c)}</option>`).join('')}</select>
       <select onchange="cFilter.status=this.value;render()"><option value="">All statuses</option>${['paid','partial','pledged'].map(s=>`<option value="${s}" ${cFilter.status===s?'selected':''}>${s}</option>`).join('')}</select>
       <select onchange="cFilter.source=this.value;render()"><option value="">All sources</option>${SOURCES.filter(s=>s!=='Rwanda').map(s=>`<option value="${s}" ${cFilter.source===s?'selected':''}>${s}</option>`).join('')}</select>
@@ -572,7 +583,7 @@ function viewGuests(){
   </div>
   <div class="panel">
     <div class="controls">
-      <input class="search" placeholder="Search guest…" value="${esc(gFilter.q)}" oninput="gFilter.q=this.value;render()">
+      <input class="search" placeholder="Search guest…" value="${esc(gFilter.q)}" oninput="searchInput(this,v=>gFilter.q=v)">
       <select onchange="gFilter.cat=this.value;render()"><option value="">All categories</option>${cats.map(c=>`<option ${gFilter.cat===c?'selected':''}>${esc(c)}</option>`).join('')}</select>
       <select onchange="gFilter.att=this.value;render()"><option value="">Any attendance</option><option value="yes">Attending</option><option value="no">Not attending</option></select>
     </div>
@@ -621,17 +632,16 @@ function curBlock(cur,accent){
   </div>`;
 }
 function viewRwanda(){
-  const r=curTotals('RWF'), u=curTotals('USD');
+  const r=curTotals('RWF');
   return `
-  <div class="banner" style="background:#FFE0E8;border-color:#FF2E63"><span>❋</span><div>The <b>Rwanda team collects in RWF and USD</b> — each currency is tracked on its own and <b>never</b> mixed with each other or with the Tanzanian (TZS) totals. Three currencies, three separate tallies.</div></div>
+  <div class="banner" style="background:#FFE0E8;border-color:#FF2E63"><span>❋</span><div>The <b>Rwanda team collects in RWF</b> — tracked on its own and <b>never</b> mixed with the Tanzanian (TZS) totals. Different currencies, separate tallies.</div></div>
   <div class="kpi-row">
-    <div class="kpi k-coral"><div class="kpi-lbl">RWF collected</div><div class="kpi-val" style="font-size:22px">RWF ${Number(r.paid).toLocaleString()}</div><div class="kpi-sub">${r.n} people · ${r.pledged?Math.round(r.paid/r.pledged*100):0}%</div></div>
-    <div class="kpi k-teal"><div class="kpi-lbl">USD collected</div><div class="kpi-val" style="font-size:22px">$ ${Number(u.paid).toLocaleString()}</div><div class="kpi-sub">${u.n} people · ${u.pledged?Math.round(u.paid/u.pledged*100):0}%</div></div>
-    <div class="kpi k-deep"><div class="kpi-lbl">Currencies</div><div class="kpi-val" style="font-size:22px">RWF · USD</div><div class="kpi-sub">kept separate</div></div>
+    <div class="kpi k-coral"><div class="kpi-lbl">RWF pledged</div><div class="kpi-val" style="font-size:22px">RWF ${Number(r.pledged).toLocaleString()}</div><div class="kpi-sub">${r.n} contributors</div></div>
+    <div class="kpi k-teal"><div class="kpi-lbl">RWF collected</div><div class="kpi-val" style="font-size:22px">RWF ${Number(r.paid).toLocaleString()}</div><div class="kpi-sub">${r.pledged?Math.round(r.paid/r.pledged*100):0}% collected</div></div>
+    <div class="kpi k-deep"><div class="kpi-lbl">RWF outstanding</div><div class="kpi-val" style="font-size:22px">RWF ${Number(r.out).toLocaleString()}</div><div class="kpi-sub">still to collect</div></div>
   </div>
-  <div class="controls"><input class="search" placeholder="Search Rwanda contributor…" value="${esc(rFilter.q)}" oninput="rFilter.q=this.value;render()"></div>
-  ${curBlock('RWF','#FF2E63')}
-  ${curBlock('USD','#08D9D6')}`;
+  <div class="controls"><input class="search" placeholder="Search Rwanda contributor…" value="${esc(rFilter.q)}" oninput="searchInput(this,v=>rFilter.q=v)"></div>
+  ${curBlock('RWF','#FF2E63')}`;
 }
 function drawRwandaChart(){}
 function openEditCur(cur){ openEdit(); setTimeout(()=>{const s=document.getElementById('eCur');if(s)s.value=cur;const src=document.getElementById('eSrc');if(src)src.value='Rwanda';},30); }
@@ -756,7 +766,7 @@ function openEdit(id){
       </div>
       <div class="grid-2" style="gap:12px">
         <div class="field"><label>Source list</label><select id="eSrc">${SOURCES.map(s=>`<option ${(g.source||'Main')===s?'selected':''}>${s}</option>`).join('')}</select></div>
-        <div class="field"><label>Currency</label><select id="eCur"><option ${(g.currency||'TZS')==='TZS'?'selected':''}>TZS</option><option ${g.currency==='RWF'?'selected':''}>RWF</option><option ${g.currency==='USD'?'selected':''}>USD</option></select></div>
+        <div class="field"><label>Currency</label><select id="eCur"><option ${(g.currency||'TZS')==='TZS'?'selected':''}>TZS</option><option ${g.currency==='RWF'?'selected':''}>RWF</option></select></div>
       </div>
       <div class="grid-2" style="gap:12px">
         <div class="field"><label>Pledged (TZS)</label><input id="ePl" type="number" value="${+g.pledged||0}"></div>
