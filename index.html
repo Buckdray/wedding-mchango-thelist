@@ -294,7 +294,7 @@ function buildNav(){
     b.onclick=()=>go(n.id);
     nav.appendChild(b);
   });
-  document.getElementById('sbFoot').innerHTML=`${GUESTS.length} guests · ${GUESTS.filter(isPledger).length} pledgers`;
+  document.getElementById('sbFoot').innerHTML=`${GUESTS.length} guests · ${GUESTS.filter(isPledger).length} pledgers<br><span style="opacity:.5;font-size:10px">v20260711-1209</span>`;
 }
 async function refreshPendingCount(){
   if(!ME || ROLE_RANK[ME.role]<2) return;
