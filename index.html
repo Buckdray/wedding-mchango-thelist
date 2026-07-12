@@ -288,7 +288,7 @@ function buildNav(){
     b.onclick=()=>go(n.id);
     nav.appendChild(b);
   });
-  document.getElementById('sbFoot').innerHTML=`${GUESTS.length} guests · ${GUESTS.filter(isPledger).length} pledgers<br><span style="opacity:.45;font-size:10px">v20260711-1343</span>`;
+  document.getElementById('sbFoot').innerHTML=`${GUESTS.length} guests · ${GUESTS.filter(isPledger).length} pledgers<br><span style="opacity:.45;font-size:10px">v20260711-2221</span>`;
 }
 function go(v){ curView=v; document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));
   buildNav();
@@ -589,7 +589,7 @@ function viewGuests(){
     </div>
     <div style="overflow-x:auto">
     <table class="tbl">
-      <thead><tr><th>Name</th><th>Category</th><th>Handler</th><th>Attending</th><th>Status</th><th class="num">Pledged</th></tr></thead>
+      <thead><tr><th>Name</th><th>Category</th><th>Source</th><th>Handler</th><th>Attending</th><th>Status</th><th class="num">Pledged</th></tr></thead>
       <tbody>${rows.map(g=>`<tr>
         <td><b>${esc(g.name)}</b></td><td><span class="tag tag-cat">${esc(g.category)}</span></td>
         <td><span class="tag" style="background:${(SOURCE_COLORS[g.source||'Main'])}22;color:${SOURCE_COLORS[g.source||'Main']}">${esc(g.source||'Main')}</span></td>
@@ -632,16 +632,17 @@ function curBlock(cur,accent){
   </div>`;
 }
 function viewRwanda(){
-  const r=curTotals('RWF');
+  const r=curTotals('RWF'), u=curTotals('USD');
   return `
-  <div class="banner" style="background:#FFE0E8;border-color:#FF2E63"><span>❋</span><div>The <b>Rwanda team collects in RWF</b> — tracked on its own and <b>never</b> mixed with the Tanzanian (TZS) totals. Different currencies, separate tallies.</div></div>
+  <div class="banner" style="background:#FFE0E8;border-color:#FF2E63"><span>❋</span><div>The <b>Rwanda team collects in RWF and USD</b> — each currency is tracked on its own and <b>never</b> mixed with each other or with the Tanzanian (TZS) totals.</div></div>
   <div class="kpi-row">
     <div class="kpi k-coral"><div class="kpi-lbl">RWF pledged</div><div class="kpi-val" style="font-size:22px">RWF ${Number(r.pledged).toLocaleString()}</div><div class="kpi-sub">${r.n} contributors</div></div>
     <div class="kpi k-teal"><div class="kpi-lbl">RWF collected</div><div class="kpi-val" style="font-size:22px">RWF ${Number(r.paid).toLocaleString()}</div><div class="kpi-sub">${r.pledged?Math.round(r.paid/r.pledged*100):0}% collected</div></div>
-    <div class="kpi k-deep"><div class="kpi-lbl">RWF outstanding</div><div class="kpi-val" style="font-size:22px">RWF ${Number(r.out).toLocaleString()}</div><div class="kpi-sub">still to collect</div></div>
+    <div class="kpi k-deep"><div class="kpi-lbl">USD collected</div><div class="kpi-val" style="font-size:22px">$ ${Number(u.paid).toLocaleString()}</div><div class="kpi-sub">${u.n} contributors · $ ${Number(u.pledged).toLocaleString()} pledged</div></div>
   </div>
   <div class="controls"><input class="search" placeholder="Search Rwanda contributor…" value="${esc(rFilter.q)}" oninput="searchInput(this,v=>rFilter.q=v)"></div>
-  ${curBlock('RWF','#FF2E63')}`;
+  ${curBlock('RWF','#FF2E63')}
+  ${curBlock('USD','#08D9D6')}`;
 }
 function drawRwandaChart(){}
 function openEditCur(cur){ openEdit(); setTimeout(()=>{const s=document.getElementById('eCur');if(s)s.value=cur;const src=document.getElementById('eSrc');if(src)src.value='Rwanda';},30); }
@@ -766,14 +767,14 @@ function openEdit(id){
       </div>
       <div class="grid-2" style="gap:12px">
         <div class="field"><label>Source list</label><select id="eSrc">${SOURCES.map(s=>`<option ${(g.source||'Main')===s?'selected':''}>${s}</option>`).join('')}</select></div>
-        <div class="field"><label>Currency</label><select id="eCur"><option ${(g.currency||'TZS')==='TZS'?'selected':''}>TZS</option><option ${g.currency==='RWF'?'selected':''}>RWF</option></select></div>
+        <div class="field"><label>Currency</label><select id="eCur"><option ${(g.currency||'TZS')==='TZS'?'selected':''}>TZS</option><option ${g.currency==='RWF'?'selected':''}>RWF</option><option ${g.currency==='USD'?'selected':''}>USD</option></select></div>
       </div>
       <div class="grid-2" style="gap:12px">
-        <div class="field"><label>Pledged (TZS)</label><input id="ePl" type="number" value="${+g.pledged||0}"></div>
-        <div class="field"><label>Paid (TZS)</label><input id="ePd" type="number" value="${+g.paid||0}"></div>
+        <div class="field"><label>Pledged</label><input id="ePl" type="number" value="${+g.pledged||0}"></div>
+        <div class="field"><label>Paid</label><input id="ePd" type="number" value="${+g.paid||0}"></div>
       </div>
       <div class="grid-2" style="gap:12px">
-        <div class="field"><label>Channel</label><select id="eCh"><option value="">—</option>${['Irene','CRDB','Voda','Selcom','Ukumbi','MC','Stanbic','Mixx'].map(c=>`<option ${g.channel===c?'selected':''}>${c}</option>`).join('')}</select></div>
+        <div class="field"><label>Channel <small class="mini">(On-hand = held by handler)</small></label><select id="eCh"><option value="">—</option>${['On-hand','MTN Momo','CRDB','Stanbic','Voda','Selcom','Mixx'].map(c=>`<option ${g.channel===c?'selected':''}>${c}</option>`).join('')}</select></div>
         <div class="field"><label>Attending</label><input id="eAtt" value="${esc(g.attending||'')}"></div>
       </div>
       <div class="modal-foot">
