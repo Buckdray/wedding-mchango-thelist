@@ -225,9 +225,14 @@ function persist(){ if(!LIVE){ localStorage.setItem('mc_guests',JSON.stringify(G
 
 async function saveGuest(g){
   if(LIVE){
-    if(g.id){ const {error}=await sb.from('guests').update(g).eq('id',g.id); if(error)throw error;
+    if(g.id){
+      // Postgres 'id' is GENERATED ALWAYS — never send it (or updated_at) in an UPDATE.
+      const {id, updated_at, created_at, ...fields}=g;
+      const {error}=await sb.from('guests').update(fields).eq('id',g.id); if(error)throw error;
       const i=GUESTS.findIndex(x=>x.id===g.id); if(i>=0) GUESTS[i]=g; }
-    else { const {data,error}=await sb.from('guests').insert(g).select().single(); if(error)throw error; g.id=data.id; GUESTS.push(Object.assign(g,data)); }
+    else {
+      const {id, updated_at, created_at, ...fields}=g;
+      const {data,error}=await sb.from('guests').insert(fields).select().single(); if(error)throw error; g.id=data.id; GUESTS.push(Object.assign(g,data)); }
   } else {
     if(g.id){ const i=GUESTS.findIndex(x=>x.id===g.id); GUESTS[i]=g; }
     else { g.id=Math.max(0,...GUESTS.map(x=>x.id))+1; GUESTS.push(g); }
@@ -288,7 +293,7 @@ function buildNav(){
     b.onclick=()=>go(n.id);
     nav.appendChild(b);
   });
-  document.getElementById('sbFoot').innerHTML=`${GUESTS.length} guests · ${GUESTS.filter(isPledger).length} pledgers<br><span style="opacity:.45;font-size:10px">v20260711-2221</span>`;
+  document.getElementById('sbFoot').innerHTML=`${GUESTS.length} guests · ${GUESTS.filter(isPledger).length} pledgers<br><span style="opacity:.45;font-size:10px">v20260712-0905</span>`;
 }
 function go(v){ curView=v; document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));
   buildNav();
