@@ -224,6 +224,12 @@ async function loadAll(){
 function persist(){ if(!LIVE){ localStorage.setItem('mc_guests',JSON.stringify(GUESTS)); localStorage.setItem('mc_spend',JSON.stringify(SPEND)); } }
 
 async function saveGuest(g){
+  // New contributor with no position yet -> put them at the bottom (next sort_order).
+  // This keeps the list chronological: newest pledges append at the end.
+  if(!g.id && (g.sort_order===undefined || g.sort_order===null)){
+    const maxSO=Math.max(0,...GUESTS.filter(x=>x.currency===g.currency).map(x=>x.sort_order||0));
+    g.sort_order=maxSO+1;
+  }
   if(LIVE){
     if(g.id){
       // Postgres 'id' is GENERATED ALWAYS — never send it (or updated_at) in an UPDATE.
@@ -293,7 +299,7 @@ function buildNav(){
     b.onclick=()=>go(n.id);
     nav.appendChild(b);
   });
-  document.getElementById('sbFoot').innerHTML=`${GUESTS.length} guests · ${GUESTS.filter(isPledger).length} pledgers<br><span style="opacity:.45;font-size:10px">v20260712-1032</span>`;
+  document.getElementById('sbFoot').innerHTML=`${GUESTS.length} guests · ${GUESTS.filter(isPledger).length} pledgers<br><span style="opacity:.45;font-size:10px">v20260712-1704</span>`;
 }
 function go(v){ curView=v; document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));
   buildNav();
