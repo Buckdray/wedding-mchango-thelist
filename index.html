@@ -299,7 +299,7 @@ function buildNav(){
     b.onclick=()=>go(n.id);
     nav.appendChild(b);
   });
-  document.getElementById('sbFoot').innerHTML=`${GUESTS.length} guests · ${GUESTS.filter(isPledger).length} pledgers<br><span style="opacity:.45;font-size:10px">v20260712-1704</span>`;
+  document.getElementById('sbFoot').innerHTML=`${GUESTS.length} guests · ${GUESTS.filter(isPledger).length} pledgers<br><span style="opacity:.45;font-size:10px">v20260716-1609</span>`;
 }
 function go(v){ curView=v; document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));
   buildNav();
@@ -790,7 +790,7 @@ function openEdit(id){
       </div>
       <div class="grid-2" style="gap:12px">
         <div class="field"><label>Channel <small class="mini">(On-hand = held by handler)</small></label><select id="eCh"><option value="">—</option>${['On-hand','MTN Momo','CRDB','Stanbic','Voda','Selcom','Mixx'].map(c=>`<option ${g.channel===c?'selected':''}>${c}</option>`).join('')}</select></div>
-        <div class="field"><label>Attending</label><input id="eAtt" value="${esc(g.attending||'')}"></div>
+        <div class="field"><label>Attending</label><select id="eAtt">${(()=>{const opts=['','Yes','No','Maybe'];const cur=g.attending||'';if(cur&&!opts.includes(cur))opts.push(cur);return opts.map(o=>`<option value="${esc(o)}" ${cur===o?'selected':''}>${o||'—'}</option>`).join('');})()}</select></div>
       </div>
       <div class="modal-foot">
         ${id&&can.admin()?`<button class="btn btn-ghost" style="color:var(--coral);margin-right:auto" onclick="delGuest(${id})">Delete</button>`:''}
