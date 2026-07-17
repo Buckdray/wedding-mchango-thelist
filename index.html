@@ -279,11 +279,11 @@ function toggleSidebar(){ document.getElementById('sidebar').classList.toggle('c
 /* ===== NAV ===== */
 const NAV=[
   {id:'dash',ico:'◧',label:'Dashboard',min:1},
-  {id:'contrib',ico:'❑',label:'Tanzania (TZS)',min:1},
+  {id:'exchange',ico:'⇄',label:'Grand total',min:1},
+  {id:'contrib',ico:'❑',label:'Tanzania',min:1},
+  {id:'rwanda',ico:'❋',label:'Rwanda',min:1},
   {id:'guests',ico:'☷',label:'Guest list',min:1},
-  {id:'rwanda',ico:'❋',label:'Rwanda (RWF)',min:1},
   {id:'budget',ico:'▤',label:'Budget & spend',min:1},
-  {id:'exchange',ico:'⇄',label:'Grand total (FX)',min:1},
   {id:'dispatch',ico:'✎',label:'Dispatcher',min:2,disp:true},
   {id:'review',ico:'⇊',label:'Review pledges',min:2},
   {id:'admin',ico:'⚙',label:'Admin',min:3},
@@ -300,11 +300,11 @@ function buildNav(){
     b.onclick=()=>go(n.id);
     nav.appendChild(b);
   });
-  document.getElementById('sbFoot').innerHTML=`${GUESTS.length} guests · ${GUESTS.filter(isPledger).length} pledgers<br><span style="opacity:.45;font-size:10px">v20260717-0937</span>`;
+  document.getElementById('sbFoot').innerHTML=`${GUESTS.length} guests · ${GUESTS.filter(isPledger).length} pledgers<br><span style="opacity:.45;font-size:10px">v20260717-1109</span>`;
 }
 function go(v){ curView=v; document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));
   buildNav();
-  const titles={dash:'Dashboard',contrib:'Tanzania (TZS)',guests:'Guest list',rwanda:'Rwanda (RWF)',budget:'Budget & spend',exchange:'Grand total (currency exchange)',dispatch:'Dispatcher',review:'Review pledges',admin:'Admin'};
+  const titles={dash:'Dashboard',contrib:'Tanzania',guests:'Guest list',rwanda:'Rwanda',budget:'Budget & spend',exchange:'Grand total (currency exchange)',dispatch:'Dispatcher',review:'Review pledges',admin:'Admin'};
   document.getElementById('viewTitle').textContent=titles[v]||v;
   if(window.innerWidth<680) document.getElementById('sidebar').classList.add('collapsed');
   render();
