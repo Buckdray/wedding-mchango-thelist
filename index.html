@@ -299,7 +299,7 @@ function buildNav(){
     b.onclick=()=>go(n.id);
     nav.appendChild(b);
   });
-  document.getElementById('sbFoot').innerHTML=`${GUESTS.length} guests · ${GUESTS.filter(isPledger).length} pledgers<br><span style="opacity:.45;font-size:10px">v20260716-1609</span>`;
+  document.getElementById('sbFoot').innerHTML=`${GUESTS.length} guests · ${GUESTS.filter(isPledger).length} pledgers<br><span style="opacity:.45;font-size:10px">v20260717-0925</span>`;
 }
 function go(v){ curView=v; document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));
   buildNav();
@@ -462,19 +462,31 @@ function viewDash(){
   const pct=t.pledged?Math.round(t.paid/t.pledged*100):0;
   const paidPct=t.pledged?t.paid/t.pledged*100:0;
   const partPct=t.pledged?GUESTS.filter(g=>statusOf(g)==='partial').reduce((s,g)=>s+(+g.pledged-+g.paid),0)/t.pledged*100:0;
-  const drift = t.pledged!==27420000;
+  // Rwanda (RWF) + USD summaries — separate currency, never mixed with TZS
+  const rw=curTotals('RWF'), us=curTotals('USD');
+  const rwPct=rw.pledged?Math.round(rw.paid/rw.pledged*100):0;
+  const rwPaidPct=rw.pledged?rw.paid/rw.pledged*100:0;
   return `
-  ${drift?`<div class="banner"><span>⚠</span><div>This dataset was seeded from <b>TheList.xlsx</b> and totals <b>${money(t.pledged)}</b> across ${t.nP} pledgers — which differs from the committee's authoritative 90-person list (27,420,000). Use the Contributors view to reconcile which entries are real before trusting these figures as final.</div></div>`:''}
   <div class="kpi-row">
-    <div class="kpi k-teal"><div class="kpi-lbl">Collected</div><div class="kpi-val">${money(t.paid)}</div><div class="kpi-sub pos">${pct}% of ${M(t.pledged)} pledged</div></div>
-    <div class="kpi k-coral"><div class="kpi-lbl">Outstanding</div><div class="kpi-val">${money(t.out)}</div><div class="kpi-sub">still to collect</div></div>
+    <div class="kpi k-teal"><div class="kpi-lbl">Collected (TZS)</div><div class="kpi-val">${money(t.paid)}</div><div class="kpi-sub pos">${pct}% of ${M(t.pledged)} pledged</div></div>
+    <div class="kpi k-coral"><div class="kpi-lbl">Outstanding (TZS)</div><div class="kpi-val">${money(t.out)}</div><div class="kpi-sub">still to collect</div></div>
     <div class="kpi k-deep"><div class="kpi-lbl">Event budget</div><div class="kpi-val">${M(b.totalCost)}</div><div class="kpi-sub">total cost</div></div>
     <div class="kpi k-butter"><div class="kpi-lbl">Funding gap</div><div class="kpi-val">${money(b.gapWorst)}</div><div class="kpi-sub neg">worst case (vs cash)</div></div>
   </div>
   <div class="panel">
-    <div class="panel-h"><h3>Collection progress</h3><span class="sub">${t.paidN} paid · ${t.partN} partial · ${t.pendN} awaiting</span></div>
+    <div class="panel-h"><h3>Tanzania collection progress <span class="sub" style="font-weight:400">· TZS</span></h3><span class="sub">${t.paidN} paid · ${t.partN} partial · ${t.pendN} awaiting</span></div>
     <div class="prog"><i class="p-paid" style="width:${paidPct}%"></i><i class="p-part" style="width:${partPct}%"></i></div>
     <div class="legend"><span><span class="dot" style="background:var(--teal)"></span>Fully paid</span><span><span class="dot" style="background:var(--coral)"></span>Partial</span><span><span class="dot" style="background:#EDE3CE"></span>Not yet</span></div>
+  </div>
+  <div class="panel" style="border-left:4px solid #FF2E63">
+    <div class="panel-h"><h3>🇷🇼 Rwanda &amp; diaspora <span class="sub" style="font-weight:400">· tracked separately, never added to TZS</span></h3></div>
+    <div class="hcard">
+      <div class="hc" style="border-left:4px solid #FF2E63"><div class="hc-v">RWF ${Number(rw.paid).toLocaleString()}</div><div class="hc-l">collected of ${Number(rw.pledged).toLocaleString()} · ${rwPct}%</div></div>
+      <div class="hc" style="border-left:4px solid #252A34"><div class="hc-v">RWF ${Number(rw.out).toLocaleString()}</div><div class="hc-l">outstanding · ${rw.n} contributors</div></div>
+      ${us.n>0?`<div class="hc" style="border-left:4px solid #08D9D6"><div class="hc-v">$ ${Number(us.paid).toLocaleString()}</div><div class="hc-l">USD collected of ${Number(us.pledged).toLocaleString()} · ${us.n} people</div></div>`:''}
+    </div>
+    <div class="prog" style="margin-top:12px"><i class="p-paid" style="width:${rwPaidPct}%;background:#FF2E63"></i></div>
+    <div class="legend"><span style="color:var(--muted)">${rw.paidN} paid · ${rw.partN} partial · ${rw.pendN} awaiting — <a onclick="go('rwanda')" style="color:#FF2E63;cursor:pointer;text-decoration:underline">open Rwanda view →</a></span></div>
   </div>
   <div class="grid-2">
     <div class="panel"><div class="panel-h"><h3>Contributions by category</h3></div><div class="chart-wrap"><canvas id="catChart"></canvas></div></div>
