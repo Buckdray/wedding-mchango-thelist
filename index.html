@@ -283,6 +283,7 @@ const NAV=[
   {id:'guests',ico:'☷',label:'Guest list',min:1},
   {id:'rwanda',ico:'❋',label:'Rwanda (RWF)',min:1},
   {id:'budget',ico:'▤',label:'Budget & spend',min:1},
+  {id:'exchange',ico:'⇄',label:'Grand total (FX)',min:1},
   {id:'dispatch',ico:'✎',label:'Dispatcher',min:2,disp:true},
   {id:'review',ico:'⇊',label:'Review pledges',min:2},
   {id:'admin',ico:'⚙',label:'Admin',min:3},
@@ -299,11 +300,11 @@ function buildNav(){
     b.onclick=()=>go(n.id);
     nav.appendChild(b);
   });
-  document.getElementById('sbFoot').innerHTML=`${GUESTS.length} guests · ${GUESTS.filter(isPledger).length} pledgers<br><span style="opacity:.45;font-size:10px">v20260717-0925</span>`;
+  document.getElementById('sbFoot').innerHTML=`${GUESTS.length} guests · ${GUESTS.filter(isPledger).length} pledgers<br><span style="opacity:.45;font-size:10px">v20260717-0937</span>`;
 }
 function go(v){ curView=v; document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));
   buildNav();
-  const titles={dash:'Dashboard',contrib:'Tanzania (TZS)',guests:'Guest list',rwanda:'Rwanda (RWF)',budget:'Budget & spend',dispatch:'Dispatcher',review:'Review pledges',admin:'Admin'};
+  const titles={dash:'Dashboard',contrib:'Tanzania (TZS)',guests:'Guest list',rwanda:'Rwanda (RWF)',budget:'Budget & spend',exchange:'Grand total (currency exchange)',dispatch:'Dispatcher',review:'Review pledges',admin:'Admin'};
   document.getElementById('viewTitle').textContent=titles[v]||v;
   if(window.innerWidth<680) document.getElementById('sidebar').classList.add('collapsed');
   render();
@@ -394,6 +395,7 @@ function render(){
   else if(curView==='guests') c.innerHTML=viewGuests();
   else if(curView==='rwanda') c.innerHTML=viewRwanda();
   else if(curView==='budget') c.innerHTML=viewBudget();
+  else if(curView==='exchange'){ c.innerHTML=viewExchange(); loadRates(); }
   else if(curView==='dispatch') c.innerHTML=viewDispatch();
   else if(curView==='review'){ c.innerHTML='<div class="panel"><p class="muted">Loading…</p></div>'; loadSubmissions(); }
   else if(curView==='admin') c.innerHTML=viewAdmin();
@@ -670,6 +672,70 @@ function viewRwanda(){
 }
 function drawRwandaChart(){}
 function openEditCur(cur){ openEdit(); setTimeout(()=>{const s=document.getElementById('eCur');if(s)s.value=cur;const src=document.getElementById('eSrc');if(src)src.value='WhatsApp-Rwanda';},30); }
+
+
+/* ===== GRAND TOTAL / FX ===== */
+// Rates default to the values you provided; auto-updated from a free API on load if available.
+let FX = { rwf: 1.7876, usd: 2632.21, source: 'manual', when: '' };
+async function loadRates(){
+  try{
+    // free, no-key, browser-allowed endpoint (base = TZS)
+    const res = await fetch('https://open.er-api.com/v6/latest/TZS');
+    const d = await res.json();
+    if(d && d.rates && d.rates.RWF && d.rates.USD){
+      // API gives how many RWF per 1 TZS; we want TZS per 1 RWF -> invert
+      FX.rwf = 1 / d.rates.RWF;
+      FX.usd = 1 / d.rates.USD;
+      FX.source = 'live';
+      FX.when = d.time_last_update_utc || new Date().toUTCString();
+      if(curView==='exchange') document.getElementById('content').innerHTML=viewExchange();
+    }
+  }catch(e){ /* keep manual defaults if fetch blocked */ }
+}
+function setRate(which,val){ FX[which]=parseFloat(val)||0; FX.source='manual (edited)'; if(curView==='exchange') document.getElementById('content').innerHTML=viewExchange(); }
+function viewExchange(){
+  const tz=totals(), rw=curTotals('RWF'), us=curTotals('USD');
+  const fmt=n=>Math.round(n).toLocaleString('en-US');
+  // TZS-equivalents
+  const rwPaidTzs=rw.paid*FX.rwf, rwPledTzs=rw.pledged*FX.rwf;
+  const usPaidTzs=us.paid*FX.usd, usPledTzs=us.pledged*FX.usd;
+  const grandPaid = tz.paid + rwPaidTzs + usPaidTzs;
+  const grandPled = tz.pledged + rwPledTzs + usPledTzs;
+  const grandOut  = grandPled - grandPaid;
+  const budget=budgetTotals().totalCost;
+  const gap = budget - grandPaid;
+  return `
+  <div class="banner"><span>⇄</span><div>This page converts every currency into a <b>TZS-equivalent</b> so you can see one combined total. It's an <b>estimate</b> — the real money in each currency is fixed; only its TZS value shifts with the rate. Rates: <b>${FX.source}</b>${FX.when?' · '+FX.when:''}.</div></div>
+
+  <div class="panel">
+    <div class="panel-h"><h3>Exchange rates</h3><span class="sub">edit any rate to recalculate</span></div>
+    <div class="grid-2" style="gap:14px;max-width:560px">
+      <div class="field"><label>1 RWF = ? TZS</label><input type="number" step="0.0001" value="${FX.rwf.toFixed(4)}" onchange="setRate('rwf',this.value)"></div>
+      <div class="field"><label>1 USD = ? TZS</label><input type="number" step="0.01" value="${FX.usd.toFixed(2)}" onchange="setRate('usd',this.value)"></div>
+    </div>
+    <p class="mini" style="margin-top:8px">Tip: check today's rate on Google ("1 RWF to TZS") and type it here if the auto-rate looks off.</p>
+  </div>
+
+  <div class="kpi-row">
+    <div class="kpi k-teal"><div class="kpi-lbl">Grand total collected</div><div class="kpi-val">${fmt(grandPaid)}</div><div class="kpi-sub pos">TZS-equivalent</div></div>
+    <div class="kpi k-butter"><div class="kpi-lbl">Grand total pledged</div><div class="kpi-val">${fmt(grandPled)}</div><div class="kpi-sub">TZS-equivalent</div></div>
+    <div class="kpi k-coral"><div class="kpi-lbl">Outstanding</div><div class="kpi-val">${fmt(grandOut)}</div><div class="kpi-sub">still to collect</div></div>
+    <div class="kpi k-deep"><div class="kpi-lbl">Gap vs budget</div><div class="kpi-val">${fmt(gap)}</div><div class="kpi-sub neg">of ${fmt(budget)} cost</div></div>
+  </div>
+
+  <div class="panel">
+    <div class="panel-h"><h3>Breakdown by currency</h3><span class="sub">original amount → TZS-equivalent</span></div>
+    <div style="overflow-x:auto"><table class="tbl">
+      <thead><tr><th>Stream</th><th class="num">Collected (original)</th><th class="num">Collected (TZS-eq)</th><th class="num">Pledged (original)</th><th class="num">Pledged (TZS-eq)</th></tr></thead>
+      <tbody>
+        <tr><td><b>Tanzania</b> · TZS</td><td class="num">${fmt(tz.paid)}</td><td class="num">${fmt(tz.paid)}</td><td class="num">${fmt(tz.pledged)}</td><td class="num">${fmt(tz.pledged)}</td></tr>
+        <tr><td><b>Rwanda</b> · RWF</td><td class="num">RWF ${fmt(rw.paid)}</td><td class="num">${fmt(rwPaidTzs)}</td><td class="num">RWF ${fmt(rw.pledged)}</td><td class="num">${fmt(rwPledTzs)}</td></tr>
+        <tr><td><b>Diaspora</b> · USD</td><td class="num">$ ${fmt(us.paid)}</td><td class="num">${fmt(usPaidTzs)}</td><td class="num">$ ${fmt(us.pledged)}</td><td class="num">${fmt(usPledTzs)}</td></tr>
+        <tr style="border-top:2px solid var(--line);font-weight:700"><td>Grand total</td><td class="num">—</td><td class="num">${fmt(grandPaid)}</td><td class="num">—</td><td class="num">${fmt(grandPled)}</td></tr>
+      </tbody>
+    </table></div>
+  </div>`;
+}
 
 /* ===== BUDGET ===== */
 function viewBudget(){
