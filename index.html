@@ -220,6 +220,7 @@ async function loadAll(){
     const lg=localStorage.getItem('mc_guests'), ls=localStorage.getItem('mc_spend');
     GUESTS = lg?JSON.parse(lg):JSON.parse(JSON.stringify(window.SEED_GUESTS));
     SPEND  = ls?JSON.parse(ls):JSON.parse(JSON.stringify(window.SEED_SPEND));
+    SPEND.forEach((s,i)=>{ if(s.id===undefined||s.id===null) s.id=i+1; });
   }
 }
 function persist(){ if(!LIVE){ localStorage.setItem('mc_guests',JSON.stringify(GUESTS)); localStorage.setItem('mc_spend',JSON.stringify(SPEND)); } }
@@ -245,6 +246,27 @@ async function saveGuest(g){
     else { g.id=Math.max(0,...GUESTS.map(x=>x.id))+1; GUESTS.push(g); }
     persist();
   }
+}
+async function saveSpend(s){
+  if(LIVE){
+    if(s.id){
+      const {id, ...fields}=s;   // id is GENERATED ALWAYS — never send it
+      const {error}=await sb.from('spend').update(fields).eq('id',s.id); if(error)throw error;
+      const i=SPEND.findIndex(x=>x.id===s.id); if(i>=0) SPEND[i]=s;
+    } else {
+      const {id, ...fields}=s;
+      const {data,error}=await sb.from('spend').insert(fields).select().single(); if(error)throw error;
+      s.id=data.id; SPEND.push(Object.assign(s,data));
+    }
+  } else {
+    if(s.id){ const i=SPEND.findIndex(x=>x.id===s.id); SPEND[i]=s; }
+    else { s.id=Math.max(0,...SPEND.map(x=>x.id||0))+1; SPEND.push(s); }
+    persist();
+  }
+}
+async function deleteSpend(id){
+  if(LIVE){ const {error}=await sb.from('spend').delete().eq('id',id); if(error)throw error; }
+  SPEND=SPEND.filter(x=>x.id!==id); persist();
 }
 async function deleteGuest(id){
   if(LIVE){ const {error}=await sb.from('guests').delete().eq('id',id); if(error)throw error; }
@@ -303,7 +325,7 @@ function buildNav(){
     b.onclick=()=>go(n.id);
     nav.appendChild(b);
   });
-  document.getElementById('sbFoot').innerHTML=`${GUESTS.length} guests · ${GUESTS.filter(isPledger).length} pledgers<br><span style="opacity:.45;font-size:10px">v20260727-1815</span>`;
+  document.getElementById('sbFoot').innerHTML=`${GUESTS.length} guests · ${GUESTS.filter(isPledger).length} pledgers<br><span style="opacity:.45;font-size:10px">v20260727-2017</span>`;
 }
 function go(v){ curView=v; document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));
   buildNav();
@@ -750,9 +772,18 @@ function viewBudget(){
   </div>
   <div class="panel"><div class="panel-h"><h3>Funding vs cost</h3><span class="sub">how far pledges & cash cover the ${M(b.totalCost)} bill</span></div>
     <div class="chart-wrap sm"><canvas id="budgetChart"></canvas></div></div>
-  ${items.length?`<div class="panel"><div class="panel-h"><h3>Spend breakdown</h3></div>
-    <table class="tbl"><thead><tr><th>Item</th><th class="num">Budget</th><th class="num">Spent</th></tr></thead>
-    <tbody>${items.map(s=>`<tr><td>${esc(s.item)}</td><td class="num">${money(s.budget)}</td><td class="num muted">${money(s.spent)}</td></tr>`).join('')}</tbody></table></div>`:''}`;
+  <div class="panel"><div class="panel-h"><h3>Spend breakdown</h3>
+      ${can.write()?`<button class="btn btn-primary btn-sm" onclick="openSpend()">+ Add budget item</button>`:'<span class="sub">read-only — admins can edit</span>'}</div>
+    ${items.length?`<div style="overflow-x:auto"><table class="tbl">
+      <thead><tr><th>Item</th><th class="num">Budget</th><th class="num">Spent</th><th class="num">Remaining</th>${can.write()?'<th></th>':''}</tr></thead>
+      <tbody>${items.map(s=>{const rem=(+s.budget||0)-(+s.spent||0);
+        return `<tr><td><b>${esc(s.item)}</b></td>
+        <td class="num">${money(s.budget)}</td>
+        <td class="num muted">${money(s.spent)}</td>
+        <td class="num" style="color:${rem<0?'var(--coral)':'var(--muted)'}">${money(rem)}</td>
+        ${can.write()?`<td class="rt"><button class="btn btn-ghost btn-sm" onclick="openSpend(${s.id})">Edit</button></td>`:''}</tr>`;}).join('')}</tbody>
+    </table></div>`:'<p class="muted center" style="padding:24px 0">No budget items yet.</p>'}
+  </div>`;
 }
 function drawBudgetChart(){ if(typeof Chart==="undefined"){_noChart("budgetChart");return;}
   const b=budgetTotals(),t=totals();
@@ -980,6 +1011,45 @@ function dupWarn(){
   GUESTS.forEach(g=>{const k=g.name.trim().toLowerCase().replace(/\s+/g,''); if(seen[k])dups.push(g.name); else seen[k]=1;});
   if(!dups.length) return '<p class="mini" style="margin-top:12px;color:var(--teal)">✓ No duplicate names detected.</p>';
   return `<p class="mini" style="margin-top:12px;color:var(--coral)">⚠ Possible duplicates: ${dups.map(esc).join(', ')}</p>`;
+}
+
+
+/* ===== BUDGET ITEM MODAL ===== */
+function openSpend(id){
+  const s=id?SPEND.find(x=>x.id===id):{item:'',budget:0,spent:0};
+  document.getElementById('modalHost').innerHTML=`
+  <div class="modal-bg" onclick="if(event.target===this)closeModal()">
+    <div class="modal">
+      <h3>${id?'Edit':'Add'} budget item</h3>
+      <div class="field"><label>Item</label><input id="sItem" value="${esc(s.item||'')}" placeholder="e.g. Chakula"></div>
+      <div class="grid-2" style="gap:12px">
+        <div class="field"><label>Budget</label><input id="sBud" type="number" value="${+s.budget||0}"></div>
+        <div class="field"><label>Spent</label><input id="sSpent" type="number" value="${+s.spent||0}"></div>
+      </div>
+      <p class="mini" style="margin-top:-4px">Tip: the item containing "Total" or "Damage" sets the overall event cost shown on the dashboard.</p>
+      <div class="modal-foot">
+        ${id?`<button class="btn btn-ghost" style="color:var(--coral)" onclick="removeSpend(${id})">Delete</button>`:'<span></span>'}
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+          <button class="btn btn-primary" onclick="saveSpendEdit(${id||0})">Save</button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+async function saveSpendEdit(id){
+  const item=(document.getElementById('sItem').value||'').trim();
+  if(!item){ toast('Enter an item name'); return; }
+  const s={ item, budget:+document.getElementById('sBud').value||0,
+            spent:+document.getElementById('sSpent').value||0 };
+  if(id) s.id=id;
+  try{ await saveSpend(s); closeModal(); render(); toast('Budget item saved'); }
+  catch(e){ toast('Error: '+(e.message||e)); }
+}
+async function removeSpend(id){
+  if(!confirm('Delete this budget item?')) return;
+  try{ await deleteSpend(id); closeModal(); render(); toast('Deleted'); }
+  catch(e){ toast('Error: '+(e.message||e)); }
 }
 
 /* ===== EDIT MODAL ===== */
