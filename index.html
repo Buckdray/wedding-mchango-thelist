@@ -303,7 +303,7 @@ function buildNav(){
     b.onclick=()=>go(n.id);
     nav.appendChild(b);
   });
-  document.getElementById('sbFoot').innerHTML=`${GUESTS.length} guests · ${GUESTS.filter(isPledger).length} pledgers<br><span style="opacity:.45;font-size:10px">v20260726-0900</span>`;
+  document.getElementById('sbFoot').innerHTML=`${GUESTS.length} guests · ${GUESTS.filter(isPledger).length} pledgers<br><span style="opacity:.45;font-size:10px">v20260727-1752</span>`;
 }
 function go(v){ curView=v; document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));
   buildNav();
@@ -764,13 +764,22 @@ function drawBudgetChart(){ if(typeof Chart==="undefined"){_noChart("budgetChart
       plugins:{legend:{display:false}}}}));
 }
 /* ===== DISPATCHER ===== */
-function viewDispatch(){
+let dispTab='tz';
+function dispTabs(){
+  return `<div style="display:flex;gap:8px;margin-bottom:14px">
+    <button class="btn btn-sm ${dispTab==='tz'?'btn-primary':'btn-ghost'}" onclick="dispTab='tz';render()">🇹🇿 Tanzania</button>
+    <button class="btn btn-sm ${dispTab==='rw'?'btn-primary':'btn-ghost'}" onclick="dispTab='rw';render()">🇷🇼 Rwanda</button>
+  </div>`;
+}
+function viewDispatch(){ return dispTab==='rw' ? viewDispatchRW() : viewDispatchTZ(); }
+function viewDispatchTZ(){
   const t=whatsappTotals();
   const pct=t.pledged?Math.round(t.paid/t.pledged*100):0;
   return `
+  ${dispTabs()}
   <div class="panel">
-    <div class="panel-h"><h3>WhatsApp progress message</h3><span class="sub">${t.nP} WhatsApp-tagged contributors only</span></div>
-    <p class="mini" style="margin-bottom:12px">This message includes <b>only the ${t.nP} people tagged as source = WhatsApp</b> (the list your sister tracks). Main-list and Rwanda contributors are excluded. WhatsApp can't post to groups automatically — copy this and send it yourself.</p>
+    <div class="panel-h"><h3>Tanzania progress message</h3><span class="sub">${t.nP} contributors · Swahili</span></div>
+    <p class="mini" style="margin-bottom:12px">Includes the <b>${t.nP} Tanzania (WhatsApp-TZ)</b> contributors only. Rwanda is on its own tab. WhatsApp can't post to groups automatically — copy this and send it yourself.</p>
     <div class="hcard" style="margin-bottom:14px">
       <div class="hc"><div class="hc-v">${money(t.paid)}</div><div class="hc-l">collected (${pct}%)</div></div>
       <div class="hc"><div class="hc-v">${money(t.pledged)}</div><div class="hc-l">pledged</div></div>
@@ -816,6 +825,73 @@ function buildDispatch(){
 }
 function copyDisp(){ const el=document.getElementById('dispMsg'); el.select(); navigator.clipboard.writeText(el.value).then(()=>toast('Message copied')); }
 function waShare(){ window.open('https://wa.me/?text='+encodeURIComponent(buildDispatch()),'_blank'); }
+
+/* ===== RWANDA DISPATCHER ===== */
+function rwList(){
+  return GUESTS.filter(g=>g.source==='WhatsApp-RW').slice().sort((a,b)=>{
+    const ao=a.sort_order??9999, bo=b.sort_order??9999;
+    if(ao!==bo) return ao-bo;
+    return a.name.toLowerCase()<b.name.toLowerCase()?-1:1;
+  });
+}
+function abbrevAmt(n,cur){
+  n=+n||0;
+  if(cur==='USD') return n+'$';
+  if(n>=1000000){ const m=n/1000000; return (m%1===0?m:m.toFixed(1).replace(/\.0$/,''))+'M'; }
+  if(n>=1000){ const k=n/1000; return (k%1===0?k:k.toFixed(1).replace(/\.0$/,''))+'K'; }
+  return String(n);
+}
+function rwTotals(){
+  const pl=rwList();
+  const rwf=pl.filter(g=>g.currency==='RWF'), usd=pl.filter(g=>g.currency==='USD');
+  const sum=(a,f)=>a.reduce((s,g)=>s+(+g[f]||0),0);
+  return {n:pl.length, nRwf:rwf.length, nUsd:usd.length,
+    rwfP:sum(rwf,'pledged'), rwfC:sum(rwf,'paid'),
+    usdP:sum(usd,'pledged'), usdC:sum(usd,'paid'),
+    paidN:pl.filter(g=>statusOf(g)==='paid').length,
+    partN:pl.filter(g=>statusOf(g)==='partial').length,
+    pendN:pl.filter(g=>statusOf(g)==='pledged').length};
+}
+function buildDispatchRW(){
+  const pl=rwList(), t=rwTotals();
+  let s='Liste yo gushyigikira ubukwe bwa Arnold Bukangwa\n';
+  pl.forEach((g,i)=>{
+    const st=statusOf(g);
+    let line=`${i+1}. ${g.name}`;
+    if((+g.pledged||0)>0) line+=` - ${abbrevAmt(g.pledged,g.currency)}`;
+    if(st==='paid') line+=' \u2705';
+    else if(st==='partial') line+=` \u2611\ufe0f${abbrevAmt(g.paid,g.currency)}`;
+    s+=line+'\n';
+  });
+  s+=`\nYose hamwe: ${Number(t.rwfP).toLocaleString('en-US')} RWF;\n${t.usdP}$\n`;
+  s+=`\nAmaze gutangwa: ${Number(t.rwfC).toLocaleString('en-US')} RWF; ${t.usdC}$`;
+  if(t.usdP>0 && t.usdC>=t.usdP) s+='  \u2705';
+  s+=`\n\nNimero yo kwoherezaho amafaranga:\n0789178174\nAmabilis Bukangwa Andrew`;
+  return s;
+}
+function viewDispatchRW(){
+  const t=rwTotals();
+  const pct=t.rwfP?Math.round(t.rwfC/t.rwfP*100):0;
+  return `
+  ${dispTabs()}
+  <div class="panel" style="border-left:4px solid #FF2E63">
+    <div class="panel-h"><h3>Rwanda progress message</h3><span class="sub">${t.n} contributors · Kinyarwanda</span></div>
+    <p class="mini" style="margin-bottom:12px">Includes the <b>${t.n} Rwanda (WhatsApp-RW)</b> contributors — ${t.nRwf} in RWF and ${t.nUsd} in USD. Payment details are <b>Andrew's Momo</b>, not Irene's TZS accounts.</p>
+    <div class="hcard" style="margin-bottom:14px">
+      <div class="hc" style="border-left:4px solid #FF2E63"><div class="hc-v">RWF ${Number(t.rwfC).toLocaleString()}</div><div class="hc-l">collected of ${Number(t.rwfP).toLocaleString()} · ${pct}%</div></div>
+      <div class="hc" style="border-left:4px solid #08D9D6"><div class="hc-v">$ ${t.usdC}</div><div class="hc-l">USD collected of ${t.usdP}</div></div>
+      <div class="hc"><div class="hc-v">${t.paidN}·${t.partN}·${t.pendN}</div><div class="hc-l">paid·partial·waiting</div></div>
+    </div>
+    ${t.n===0?'<div class="banner">No contributors tagged WhatsApp-RW yet.</div>':''}
+    <textarea id="dispMsg" style="width:100%;height:340px;padding:14px;border:1px solid var(--line);border-radius:11px;font-family:monospace;font-size:12px;background:var(--cream);color:var(--ink)" readonly>${esc(buildDispatchRW())}</textarea>
+    <div style="display:flex;gap:10px;margin-top:12px">
+      <button class="btn btn-primary" onclick="copyDisp()">Copy message</button>
+      <button class="btn btn-ghost" onclick="waShareRW()">Open WhatsApp</button>
+    </div>
+  </div>`;
+}
+function waShareRW(){ window.open('https://wa.me/?text='+encodeURIComponent(buildDispatchRW()),'_blank'); }
+
 
 /* ===== ADMIN ===== */
 function viewAdmin(){
