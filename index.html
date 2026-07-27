@@ -303,7 +303,7 @@ function buildNav(){
     b.onclick=()=>go(n.id);
     nav.appendChild(b);
   });
-  document.getElementById('sbFoot').innerHTML=`${GUESTS.length} guests · ${GUESTS.filter(isPledger).length} pledgers<br><span style="opacity:.45;font-size:10px">v20260727-1752</span>`;
+  document.getElementById('sbFoot').innerHTML=`${GUESTS.length} guests · ${GUESTS.filter(isPledger).length} pledgers<br><span style="opacity:.45;font-size:10px">v20260727-1815</span>`;
 }
 function go(v){ curView=v; document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));
   buildNav();
@@ -401,7 +401,7 @@ function render(){
   else if(curView==='exchange'){ c.innerHTML=viewExchange(); loadRates(); }
   else if(curView==='dispatch') c.innerHTML=viewDispatch();
   else if(curView==='review'){ c.innerHTML='<div class="panel"><p class="muted">Loading…</p></div>'; loadSubmissions(); }
-  else if(curView==='admin'){ c.innerHTML=viewAdmin(); loadLoginHistory(); }
+  else if(curView==='admin'){ c.innerHTML=viewAdmin(); loadLoginHistory(); loadRecipients(); }
   if(curView==='dash') drawDashCharts();
   if(curView==='rwanda') drawRwandaChart();
   if(curView==='budget') drawBudgetChart();
@@ -907,12 +907,61 @@ function viewAdmin(){
     </div>
     ${dupWarn()}
   </div>
+  <div class="panel"><div class="panel-h"><h3>Pledge email alerts</h3><span class="sub">who gets notified when a pledge arrives</span></div>
+    <p class="mini" style="margin-bottom:10px">These addresses are emailed automatically when someone submits through the public pledge form. Requires the <code>notify-pledge</code> Edge Function to be deployed (see pledge-email-setup.sql).</p>
+    <div class="controls" style="margin-bottom:10px">
+      <input class="search" id="nrEmail" placeholder="admin@example.com" style="max-width:280px">
+      <input class="search" id="nrName" placeholder="Name (optional)" style="max-width:180px">
+      <button class="btn btn-primary btn-sm" onclick="addRecipient()">+ Add recipient</button>
+    </div>
+    <div id="recipList"><p class="mini">Loading…</p></div>
+  </div>
   <div class="panel"><div class="panel-h"><h3>Login history</h3><span class="sub">super-admin audit trail</span></div>
     <div id="loginHistory"><p class="mini">Loading recent logins…</p></div>
   </div>
   <div class="panel"><div class="panel-h"><h3>Export</h3></div>
     <div style="display:flex;gap:10px"><button class="btn btn-ghost" onclick="exportCSV()">Contributors CSV</button><button class="btn btn-ghost" onclick="exportJSON()">Full backup JSON</button></div>
   </div>`;
+}
+
+async function loadRecipients(){
+  const el=document.getElementById('recipList'); if(!el) return;
+  if(!LIVE){ el.innerHTML='<p class="mini">Email alerts only work in live mode (connected to Supabase).</p>'; return; }
+  try{
+    const {data,error}=await sb.from('notify_recipients').select('*').order('email');
+    if(error) throw error;
+    if(!data||!data.length){ el.innerHTML='<p class="mini">No recipients yet. Add an address above and you\'ll be emailed on every new pledge.</p>'; return; }
+    el.innerHTML='<div style="overflow-x:auto"><table class="tbl"><thead><tr><th>Email</th><th>Name</th><th>Status</th><th></th></tr></thead><tbody>'+
+      data.map(r=>`<tr>
+        <td><b>${esc(r.email)}</b></td>
+        <td class="muted">${esc(r.name||'—')}</td>
+        <td><span class="tag ${r.active?'tag-paid':'tag-none'}">${r.active?'active':'paused'}</span></td>
+        <td class="rt" style="white-space:nowrap">
+          <button class="btn btn-ghost btn-sm" onclick="toggleRecipient(${r.id},${!r.active})">${r.active?'Pause':'Resume'}</button>
+          <button class="btn btn-ghost btn-sm" style="color:var(--coral)" onclick="delRecipient(${r.id})">Remove</button>
+        </td></tr>`).join('')+'</tbody></table></div>';
+  }catch(e){ el.innerHTML='<p class="mini">Could not load recipients. Make sure pledge-email-setup.sql has been run.</p>'; }
+}
+async function addRecipient(){
+  const email=(document.getElementById('nrEmail').value||'').trim();
+  const name=(document.getElementById('nrName').value||'').trim();
+  if(!email||!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)){ toast('Enter a valid email address'); return; }
+  if(!LIVE){ toast('Live mode only'); return; }
+  try{
+    const {error}=await sb.from('notify_recipients').insert({email,name:name||null});
+    if(error) throw error;
+    document.getElementById('nrEmail').value=''; document.getElementById('nrName').value='';
+    toast('Recipient added'); loadRecipients();
+  }catch(e){ toast('Error: '+(e.message||e)); }
+}
+async function toggleRecipient(id,active){
+  try{ await sb.from('notify_recipients').update({active}).eq('id',id); loadRecipients(); }
+  catch(e){ toast('Error: '+(e.message||e)); }
+}
+async function delRecipient(id){
+  if(!confirm('Remove this recipient?')) return;
+  try{ await sb.from('notify_recipients').delete().eq('id',id); toast('Removed'); loadRecipients(); }
+  catch(e){ toast('Error: '+(e.message||e)); }
 }
 async function loadLoginHistory(){
   const el=document.getElementById('loginHistory'); if(!el) return;
