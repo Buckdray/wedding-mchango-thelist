@@ -325,7 +325,7 @@ function buildNav(){
     b.onclick=()=>go(n.id);
     nav.appendChild(b);
   });
-  document.getElementById('sbFoot').innerHTML=`${GUESTS.length} guests · ${GUESTS.filter(isPledger).length} pledgers<br><span style="opacity:.45;font-size:10px">v20260727-2017</span>`;
+  document.getElementById('sbFoot').innerHTML=`${GUESTS.length} guests · ${GUESTS.filter(isPledger).length} pledgers<br><span style="opacity:.45;font-size:10px">v20260727-2027</span>`;
 }
 function go(v){ curView=v; document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));
   buildNav();
@@ -461,6 +461,14 @@ function bySource(){
   GUESTS.filter(g=>isPledger(g)&&tzs(g)).forEach(g=>{const k=g.source||'WhatsApp-TZ'; m[k]=m[k]||{exp:0,rec:0,n:0}; m[k].n++; m[k].exp+=+g.pledged||0; m[k].rec+=+g.paid||0;});
   return m;
 }
+function toTZS(amount,cur){
+  const n=+amount||0;
+  if(cur==='USD') return n*FX.usd;
+  if(cur==='KES') return n*FX.kes;
+  if(cur==='RWF') return n*FX.rwf;
+  return n;   // TZS or unset
+}
+const CUR_SYMBOL={TZS:'TZS',USD:'$',KES:'KES',RWF:'RWF'};
 function budgetTotals(){
   const dmg=SPEND.find(s=>/damage|total/i.test(s.item));
   const totalCost=dmg?dmg.budget:SPEND.reduce((s,x)=>s+(+x.budget||0),0);
@@ -698,7 +706,7 @@ function openEditCur(cur){ openEdit(); setTimeout(()=>{const s=document.getEleme
 
 /* ===== GRAND TOTAL / FX ===== */
 // Rates default to the values you provided; auto-updated from a free API on load if available.
-let FX = { rwf: 1.7876, usd: 2632.21, source: 'manual', when: '' };
+let FX = { rwf: 1.7876, usd: 2632.21, kes: 20.40, source: 'manual', when: '' };
 async function loadRates(){
   try{
     // free, no-key, browser-allowed endpoint (base = TZS)
@@ -708,6 +716,7 @@ async function loadRates(){
       // API gives how many RWF per 1 TZS; we want TZS per 1 RWF -> invert
       FX.rwf = 1 / d.rates.RWF;
       FX.usd = 1 / d.rates.USD;
+      if(d.rates.KES) FX.kes = 1 / d.rates.KES;
       FX.source = 'live';
       FX.when = d.time_last_update_utc || new Date().toUTCString();
       if(curView==='exchange') document.getElementById('content').innerHTML=viewExchange();
@@ -734,6 +743,7 @@ function viewExchange(){
     <div class="grid-2" style="gap:14px;max-width:560px">
       <div class="field"><label>1 RWF = ? TZS</label><input type="number" step="0.0001" value="${FX.rwf.toFixed(4)}" onchange="setRate('rwf',this.value)"></div>
       <div class="field"><label>1 USD = ? TZS</label><input type="number" step="0.01" value="${FX.usd.toFixed(2)}" onchange="setRate('usd',this.value)"></div>
+      <div class="field"><label>1 KES = ? TZS</label><input type="number" step="0.01" value="${FX.kes.toFixed(2)}" onchange="setRate('kes',this.value)"></div>
     </div>
     <p class="mini" style="margin-top:8px">Tip: check today's rate on Google ("1 RWF to TZS") and type it here if the auto-rate looks off.</p>
   </div>
@@ -762,7 +772,7 @@ function viewExchange(){
 /* ===== BUDGET ===== */
 function viewBudget(){
   const b=budgetTotals(), t=totals();
-  const items=SPEND.filter(s=>!/damage|total|michango|gap|case/i.test(s.item)&&(+s.budget||0)>0);
+  const items=SPEND.filter(s=>!/damage|total|michango|gap|case|amounts$/i.test(s.item)&&(+s.budget||0)>0);
   return `
   <div class="kpi-row">
     <div class="kpi k-deep"><div class="kpi-lbl">Total event cost</div><div class="kpi-val">${money(b.totalCost)}</div><div class="kpi-sub">the "damage"</div></div>
@@ -774,15 +784,29 @@ function viewBudget(){
     <div class="chart-wrap sm"><canvas id="budgetChart"></canvas></div></div>
   <div class="panel"><div class="panel-h"><h3>Spend breakdown</h3>
       ${can.write()?`<button class="btn btn-primary btn-sm" onclick="openSpend()">+ Add budget item</button>`:'<span class="sub">read-only — admins can edit</span>'}</div>
-    ${items.length?`<div style="overflow-x:auto"><table class="tbl">
-      <thead><tr><th>Item</th><th class="num">Budget</th><th class="num">Spent</th><th class="num">Remaining</th>${can.write()?'<th></th>':''}</tr></thead>
-      <tbody>${items.map(s=>{const rem=(+s.budget||0)-(+s.spent||0);
+    ${items.length?(()=>{
+      const mixed=[...new Set(items.map(s=>s.currency||'TZS'))].length>1;
+      const totB=items.reduce((a,s)=>a+toTZS(s.budget,s.currency),0);
+      const totS=items.reduce((a,s)=>a+toTZS(s.spent,s.currency),0);
+      return `${mixed?`<p class="mini" style="margin-bottom:10px">This budget mixes currencies. The <b>TZS-equiv</b> column converts each line using the rates on the <a onclick="go('exchange')" style="color:var(--teal);cursor:pointer;text-decoration:underline">Grand total</a> page (1 USD = ${FX.usd.toFixed(0)}, 1 KES = ${FX.kes.toFixed(2)}, 1 RWF = ${FX.rwf.toFixed(2)}).</p>`:''}
+      <div style="overflow-x:auto"><table class="tbl">
+      <thead><tr><th>Item</th><th>Cur</th><th class="num">Budget</th><th class="num">Spent</th><th class="num">Remaining</th>${mixed?'<th class="num">TZS-equiv</th>':''}${can.write()?'<th></th>':''}</tr></thead>
+      <tbody>${items.map(s=>{const cur=s.currency||'TZS'; const rem=(+s.budget||0)-(+s.spent||0);
         return `<tr><td><b>${esc(s.item)}</b></td>
+        <td><span class="tag tag-cat">${cur}</span></td>
         <td class="num">${money(s.budget)}</td>
         <td class="num muted">${money(s.spent)}</td>
         <td class="num" style="color:${rem<0?'var(--coral)':'var(--muted)'}">${money(rem)}</td>
+        ${mixed?`<td class="num muted">${cur==='TZS'?'—':money(Math.round(toTZS(s.budget,cur)))}</td>`:''}
         ${can.write()?`<td class="rt"><button class="btn btn-ghost btn-sm" onclick="openSpend(${s.id})">Edit</button></td>`:''}</tr>`;}).join('')}</tbody>
-    </table></div>`:'<p class="muted center" style="padding:24px 0">No budget items yet.</p>'}
+      <tfoot><tr style="border-top:2px solid var(--line);font-weight:700">
+        <td>Total (TZS-equivalent)</td><td></td>
+        <td class="num">${money(Math.round(totB))}</td>
+        <td class="num">${money(Math.round(totS))}</td>
+        <td class="num">${money(Math.round(totB-totS))}</td>
+        ${mixed?'<td></td>':''}${can.write()?'<td></td>':''}
+      </tr></tfoot>
+    </table></div>`;})():'<p class="muted center" style="padding:24px 0">No budget items yet.</p>'}
   </div>`;
 }
 function drawBudgetChart(){ if(typeof Chart==="undefined"){_noChart("budgetChart");return;}
@@ -1023,9 +1047,10 @@ function openSpend(id){
       <h3>${id?'Edit':'Add'} budget item</h3>
       <div class="field"><label>Item</label><input id="sItem" value="${esc(s.item||'')}" placeholder="e.g. Chakula"></div>
       <div class="grid-2" style="gap:12px">
+        <div class="field"><label>Currency</label><select id="sCur">${['TZS','USD','KES','RWF'].map(c=>`<option ${(s.currency||'TZS')===c?'selected':''}>${c}</option>`).join('')}</select></div>
         <div class="field"><label>Budget</label><input id="sBud" type="number" value="${+s.budget||0}"></div>
-        <div class="field"><label>Spent</label><input id="sSpent" type="number" value="${+s.spent||0}"></div>
       </div>
+      <div class="field"><label>Spent</label><input id="sSpent" type="number" value="${+s.spent||0}"></div>
       <p class="mini" style="margin-top:-4px">Tip: the item containing "Total" or "Damage" sets the overall event cost shown on the dashboard.</p>
       <div class="modal-foot">
         ${id?`<button class="btn btn-ghost" style="color:var(--coral)" onclick="removeSpend(${id})">Delete</button>`:'<span></span>'}
@@ -1041,7 +1066,8 @@ async function saveSpendEdit(id){
   const item=(document.getElementById('sItem').value||'').trim();
   if(!item){ toast('Enter an item name'); return; }
   const s={ item, budget:+document.getElementById('sBud').value||0,
-            spent:+document.getElementById('sSpent').value||0 };
+            spent:+document.getElementById('sSpent').value||0,
+            currency:document.getElementById('sCur').value };
   if(id) s.id=id;
   try{ await saveSpend(s); closeModal(); render(); toast('Budget item saved'); }
   catch(e){ toast('Error: '+(e.message||e)); }
