@@ -38,6 +38,18 @@ input,select{font-family:inherit}
 .sidebar.collapsed .nav-badge{position:absolute;top:6px;right:6px;min-width:16px;height:16px;font-size:9px;padding:0 4px}
 .sidebar.collapsed .nav-item{position:relative}
 .sb-foot{padding:14px 18px;border-top:1px solid rgba(255,255,255,.08);font-size:11px;color:#08D9D6}
+.cd-panel{background:linear-gradient(135deg,#252A34,#1A1E26);border-radius:14px;padding:20px 24px;margin-bottom:16px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px;box-shadow:var(--shadow)}
+.cd-left{color:#EAF6F4}
+.cd-title{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:#08D9D6;font-weight:700}
+.cd-sub{font-size:12.5px;color:#9AA6B2;margin-top:3px}
+.cd-units{display:flex;gap:10px}
+.cd-u{background:rgba(255,255,255,.07);border-radius:10px;padding:9px 14px;text-align:center;min-width:62px}
+.cd-n{font-size:23px;font-weight:700;color:#fff;line-height:1}
+.cd-l{font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:#8A9199;margin-top:3px}
+.cd-soon .cd-n{color:#FF2E63}
+.cd-today{background:linear-gradient(135deg,#08D9D6,#05B8B5)}
+.cd-today .cd-title,.cd-today .cd-sub{color:#252A34}
+.cd-today .cd-n{color:#252A34}
 .main{flex:1;min-width:0;display:flex;flex-direction:column;height:100vh;overflow-y:auto}
 .topbar{background:var(--card);border-bottom:1px solid var(--line);padding:13px 26px;display:flex;align-items:center;gap:16px;position:sticky;top:0;z-index:20}
 .burger{font-size:19px;color:var(--deep);padding:4px 8px;border-radius:7px}
@@ -296,7 +308,7 @@ async function doLogin(){
   document.getElementById('whoName').textContent=ME.name;
   document.getElementById('whoRole').textContent=ME.role.replace('_',' ');
   document.getElementById('modePill').textContent=LIVE?'Live':'Offline';
-  refreshPendingCount(); subscribePending(); buildNav(); go(ROLE_RANK[ME.role]>=1?'dash':'dash');
+  refreshPendingCount(); subscribePending(); startCountdown(); buildNav(); go(ROLE_RANK[ME.role]>=1?'dash':'dash');
 }
 function doLogout(){ ME=null; document.getElementById('appView').classList.add('hidden'); document.getElementById('loginView').classList.remove('hidden'); document.getElementById('liPass').value=''; }
 function toggleSidebar(){ document.getElementById('sidebar').classList.toggle('collapsed'); }
@@ -325,7 +337,7 @@ function buildNav(){
     b.onclick=()=>go(n.id);
     nav.appendChild(b);
   });
-  document.getElementById('sbFoot').innerHTML=`${GUESTS.length} guests · ${GUESTS.filter(isPledger).length} pledgers<br><span style="opacity:.45;font-size:10px">v20260727-2039</span>`;
+  document.getElementById('sbFoot').innerHTML=`<span id="sbCount">${(()=>{const c=countdownParts();return c?c.d+' days to go':'Today! 🎉';})()}</span><br>${GUESTS.length} guests · ${GUESTS.filter(isPledger).length} pledgers<br><span style="opacity:.45;font-size:10px">v20260727-2125</span>`;
 }
 function go(v){ curView=v; document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));
   buildNav();
@@ -492,6 +504,43 @@ function byHandler(){
 }
 
 /* ===== DASHBOARD ===== */
+const WEDDING_DATE = new Date('2026-08-22T10:00:00+03:00');   // 22 Aug 2026, EAT
+function countdownParts(){
+  const ms = WEDDING_DATE - new Date();
+  if(ms<=0) return null;
+  const d=Math.floor(ms/86400000);
+  const h=Math.floor(ms%86400000/3600000);
+  const m=Math.floor(ms%3600000/60000);
+  return {d,h,m};
+}
+function countdownHTML(){
+  const c=countdownParts();
+  if(!c) return `<div class="cd-panel cd-today"><div class="cd-left">
+      <div class="cd-title">Leo ni siku! · It's today</div>
+      <div class="cd-sub">Harusi ya Arnold Bukangwa · 22 Agosti 2026</div></div>
+      <div class="cd-units"><div class="cd-u"><div class="cd-n">🎉</div><div class="cd-l">Hongera</div></div></div></div>`;
+  const soon = c.d<=14 ? ' cd-soon' : '';
+  return `<div class="cd-panel${soon}" id="cdPanel"><div class="cd-left">
+      <div class="cd-title">Countdown to the wedding</div>
+      <div class="cd-sub">Arnold Bukangwa · 22 Agosti 2026 · Dar es Salaam</div>
+    </div>
+    <div class="cd-units">
+      <div class="cd-u"><div class="cd-n" id="cdD">${c.d}</div><div class="cd-l">days</div></div>
+      <div class="cd-u"><div class="cd-n" id="cdH">${c.h}</div><div class="cd-l">hrs</div></div>
+      <div class="cd-u"><div class="cd-n" id="cdM">${c.m}</div><div class="cd-l">min</div></div>
+    </div></div>`;
+}
+let _cdTimer=null;
+function startCountdown(){
+  if(_cdTimer) clearInterval(_cdTimer);
+  _cdTimer=setInterval(()=>{
+    const c=countdownParts(); if(!c) return;
+    const d=document.getElementById('cdD'), hh=document.getElementById('cdH'), m=document.getElementById('cdM');
+    if(d) d.textContent=c.d; if(hh) hh.textContent=c.h; if(m) m.textContent=c.m;
+    const f=document.getElementById('sbCount');
+    if(f) f.textContent=c.d>0?`${c.d} days to go`:'Today! 🎉';
+  },30000);
+}
 function viewDash(){
   const t=totals(), b=budgetTotals();
   const pct=t.pledged?Math.round(t.paid/t.pledged*100):0;
@@ -502,6 +551,7 @@ function viewDash(){
   const rwPct=rw.pledged?Math.round(rw.paid/rw.pledged*100):0;
   const rwPaidPct=rw.pledged?rw.paid/rw.pledged*100:0;
   return `
+  ${countdownHTML()}
   <div class="kpi-row">
     <div class="kpi k-teal"><div class="kpi-lbl">Collected (TZS)</div><div class="kpi-val">${money(t.paid)}</div><div class="kpi-sub pos">${pct}% of ${M(t.pledged)} pledged</div></div>
     <div class="kpi k-coral"><div class="kpi-lbl">Outstanding (TZS)</div><div class="kpi-val">${money(t.out)}</div><div class="kpi-sub">still to collect</div></div>
