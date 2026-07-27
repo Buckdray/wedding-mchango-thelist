@@ -325,7 +325,7 @@ function buildNav(){
     b.onclick=()=>go(n.id);
     nav.appendChild(b);
   });
-  document.getElementById('sbFoot').innerHTML=`${GUESTS.length} guests · ${GUESTS.filter(isPledger).length} pledgers<br><span style="opacity:.45;font-size:10px">v20260727-2027</span>`;
+  document.getElementById('sbFoot').innerHTML=`${GUESTS.length} guests · ${GUESTS.filter(isPledger).length} pledgers<br><span style="opacity:.45;font-size:10px">v20260727-2039</span>`;
 }
 function go(v){ curView=v; document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));
   buildNav();
@@ -780,6 +780,26 @@ function viewBudget(){
     <div class="kpi k-coral"><div class="kpi-lbl">Gap (best case)</div><div class="kpi-val">${money(b.gapBest)}</div><div class="kpi-sub">if all pledges land</div></div>
     <div class="kpi k-butter"><div class="kpi-lbl">Gap (worst case)</div><div class="kpi-val">${money(b.gapWorst)}</div><div class="kpi-sub neg">on cash in hand</div></div>
   </div>
+  ${(()=>{
+    const byCur={};
+    items.forEach(s=>{ const c=s.currency||'TZS';
+      byCur[c]=byCur[c]||{budget:0,spent:0,n:0};
+      byCur[c].budget+=+s.budget||0; byCur[c].spent+=+s.spent||0; byCur[c].n++; });
+    const keys=Object.keys(byCur).sort();
+    if(!keys.length) return '';
+    const COL={TZS:'#08D9D6',USD:'#252A34',KES:'#FF2E63',RWF:'#8BAA88'};
+    const grand=keys.reduce((a,c)=>a+toTZS(byCur[c].budget,c),0);
+    const grandSpent=keys.reduce((a,c)=>a+toTZS(byCur[c].spent,c),0);
+    return `<div class="panel"><div class="panel-h"><h3>Spend by currency</h3><span class="sub">totalled from the line items below</span></div>
+      <div class="hcard">
+        ${keys.map(c=>`<div class="hc" style="border-left:4px solid ${COL[c]||'#888'}">
+          <div class="hc-v">${c==='USD'?'$':c+' '}${money(byCur[c].budget)}</div>
+          <div class="hc-l">${byCur[c].n} items · ${money(byCur[c].spent)} spent${c!=='TZS'?` · ≈ ${money(Math.round(toTZS(byCur[c].budget,c)))} TZS`:''}</div>
+        </div>`).join('')}
+      </div>
+      ${keys.length>1?`<p class="mini" style="margin-top:10px">Combined: <b>${money(Math.round(grand))} TZS-equivalent</b> budgeted · ${money(Math.round(grandSpent))} spent · ${money(Math.round(grand-grandSpent))} remaining</p>`:''}
+    </div>`;
+  })()}
   <div class="panel"><div class="panel-h"><h3>Funding vs cost</h3><span class="sub">how far pledges & cash cover the ${M(b.totalCost)} bill</span></div>
     <div class="chart-wrap sm"><canvas id="budgetChart"></canvas></div></div>
   <div class="panel"><div class="panel-h"><h3>Spend breakdown</h3>
