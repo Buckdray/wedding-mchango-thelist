@@ -323,6 +323,7 @@ const NAV=[
   {id:'budget',ico:'▤',label:'Budget & spend',min:1},
   {id:'dispatch',ico:'✎',label:'Dispatcher',min:2,disp:true},
   {id:'review',ico:'⇊',label:'Review pledges',min:2},
+  {id:'activity',ico:'≡',label:'Activity log',min:2},
   {id:'admin',ico:'⚙',label:'Admin',min:3},
 ];
 function buildNav(){
@@ -337,11 +338,11 @@ function buildNav(){
     b.onclick=()=>go(n.id);
     nav.appendChild(b);
   });
-  document.getElementById('sbFoot').innerHTML=`<span id="sbCount">${(()=>{const c=countdownParts();return c?c.d+' days to go':'Today! 🎉';})()}</span><br>${GUESTS.length} guests · ${GUESTS.filter(isPledger).length} pledgers<br><span style="opacity:.45;font-size:10px">v20260727-2125</span>`;
+  document.getElementById('sbFoot').innerHTML=`<span id="sbCount">${(()=>{const c=countdownParts();return c?c.d+' days to go':'Today! 🎉';})()}</span><br>${GUESTS.length} guests · ${GUESTS.filter(isPledger).length} pledgers<br><span style="opacity:.45;font-size:10px">v20260729-1604</span>`;
 }
 function go(v){ curView=v; document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));
   buildNav();
-  const titles={dash:'Dashboard',contrib:'Tanzania',guests:'Guest list',rwanda:'Rwanda',budget:'Budget & spend',exchange:'Grand total (currency exchange)',dispatch:'Dispatcher',review:'Review pledges',admin:'Admin'};
+  const titles={dash:'Dashboard',contrib:'Tanzania',guests:'Guest list',rwanda:'Rwanda',budget:'Budget & spend',exchange:'Grand total (currency exchange)',dispatch:'Dispatcher',review:'Review pledges',activity:'Activity log',admin:'Admin'};
   document.getElementById('viewTitle').textContent=titles[v]||v;
   if(window.innerWidth<680) document.getElementById('sidebar').classList.add('collapsed');
   render();
@@ -435,6 +436,7 @@ function render(){
   else if(curView==='exchange'){ c.innerHTML=viewExchange(); loadRates(); }
   else if(curView==='dispatch') c.innerHTML=viewDispatch();
   else if(curView==='review'){ c.innerHTML='<div class="panel"><p class="muted">Loading…</p></div>'; loadSubmissions(); }
+  else if(curView==='activity'){ c.innerHTML='<div class="panel"><p class="muted">Loading activity…</p></div>'; loadActivity(); }
   else if(curView==='admin'){ c.innerHTML=viewAdmin(); loadLoginHistory(); loadRecipients(); }
   if(curView==='dash') drawDashCharts();
   if(curView==='rwanda') drawRwandaChart();
@@ -950,6 +952,68 @@ function buildDispatch(){
 }
 function copyDisp(){ const el=document.getElementById('dispMsg'); el.select(); navigator.clipboard.writeText(el.value).then(()=>toast('Message copied')); }
 function waShare(){ window.open('https://wa.me/?text='+encodeURIComponent(buildDispatch()),'_blank'); }
+
+
+/* ===== ACTIVITY LOG ===== */
+let ACTIVITY=[], actFilter={who:'',what:''};
+async function loadActivity(){
+  if(!LIVE){
+    document.getElementById('content').innerHTML='<div class="banner">Activity logging only records in live mode (connected to Supabase).</div>';
+    return;
+  }
+  try{
+    const {data,error}=await sb.from('activity_log').select('*').order('created_at',{ascending:false}).limit(300);
+    if(error) throw error;
+    ACTIVITY=data||[];
+    document.getElementById('content').innerHTML=viewActivity();
+  }catch(e){
+    document.getElementById('content').innerHTML='<div class="banner">Could not load the activity log. Make sure <b>audit-log-setup.sql</b> has been run.</div>';
+  }
+}
+function viewActivity(){
+  const people=[...new Set(ACTIVITY.map(a=>a.actor_name).filter(Boolean))].sort();
+  const TABLE_LABEL={guests:'Contributors',spend:'Budget',pledge_submissions:'Pledges'};
+  let rows=ACTIVITY;
+  if(actFilter.who)  rows=rows.filter(a=>a.actor_name===actFilter.who);
+  if(actFilter.what) rows=rows.filter(a=>a.table_name===actFilter.what);
+  const badge=a=>{
+    const c={INSERT:'tag-paid',UPDATE:'tag-partial',DELETE:'tag-none'}[a.action]||'tag-cat';
+    const t={INSERT:'added',UPDATE:'edited',DELETE:'deleted'}[a.action]||a.action;
+    return `<span class="tag ${c}">${t}</span>`;
+  };
+  const when=d=>{
+    const dt=new Date(d), diff=(Date.now()-dt)/1000;
+    if(diff<60) return 'just now';
+    if(diff<3600) return Math.floor(diff/60)+'m ago';
+    if(diff<86400) return Math.floor(diff/3600)+'h ago';
+    return dt.toLocaleDateString()+' '+dt.toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+  };
+  return `
+  <div class="banner"><span>≡</span><div>Every change to contributors, the budget and pledges is recorded here — who did it and when. Written by the database itself, so edits made outside the app are captured too.</div></div>
+  <div class="panel">
+    <div class="controls">
+      <select onchange="actFilter.who=this.value;document.getElementById('content').innerHTML=viewActivity()">
+        <option value="">Everyone</option>
+        ${people.map(p=>`<option value="${esc(p)}" ${actFilter.who===p?'selected':''}>${esc(p)}</option>`).join('')}
+      </select>
+      <select onchange="actFilter.what=this.value;document.getElementById('content').innerHTML=viewActivity()">
+        <option value="">All areas</option>
+        ${Object.entries(TABLE_LABEL).map(([k,v])=>`<option value="${k}" ${actFilter.what===k?'selected':''}>${v}</option>`).join('')}
+      </select>
+      <span class="sub" style="margin-left:auto">${rows.length} of ${ACTIVITY.length} entries</span>
+    </div>
+    ${rows.length?`<div style="overflow-x:auto"><table class="tbl">
+      <thead><tr><th>When</th><th>Who</th><th>Area</th><th></th><th>What changed</th></tr></thead>
+      <tbody>${rows.map(a=>`<tr>
+        <td class="muted mini" style="white-space:nowrap">${when(a.created_at)}</td>
+        <td><b>${esc(a.actor_name||'—')}</b></td>
+        <td class="muted">${TABLE_LABEL[a.table_name]||a.table_name}</td>
+        <td>${badge(a)}</td>
+        <td>${esc(a.summary||'')}</td>
+      </tr>`).join('')}</tbody>
+    </table></div>`:'<p class="muted center" style="padding:26px 0">No activity recorded yet.</p>'}
+  </div>`;
+}
 
 /* ===== RWANDA DISPATCHER ===== */
 function rwList(){
