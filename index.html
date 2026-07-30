@@ -324,6 +324,7 @@ function toggleSidebar(){ document.getElementById('sidebar').classList.toggle('c
 const NAV=[
   {id:'dash',ico:'◧',label:'Dashboard',min:1},
   {id:'exchange',ico:'⇄',label:'Grand total',min:1},
+  {id:'insights',ico:'◔',label:'Insights',min:1},
   {id:'contrib',ico:'❑',label:'Tanzania',min:1},
   {id:'rwanda',ico:'❋',label:'Rwanda',min:1},
   {id:'guests',ico:'☷',label:'Guest list',min:1},
@@ -345,11 +346,11 @@ function buildNav(){
     b.onclick=()=>go(n.id);
     nav.appendChild(b);
   });
-  document.getElementById('sbFoot').innerHTML=`<span id="sbCount">${(()=>{const c=countdownParts();return c?c.d+' days to go':'Today! 🎉';})()}</span><br>${GUESTS.length} guests · ${GUESTS.filter(isPledger).length} pledgers<br><span style="opacity:.45;font-size:10px">v20260730-1209</span>`;
+  document.getElementById('sbFoot').innerHTML=`<span id="sbCount">${(()=>{const c=countdownParts();return c?c.d+' days to go':'Today! 🎉';})()}</span><br>${GUESTS.length} guests · ${GUESTS.filter(isPledger).length} pledgers<br><span style="opacity:.45;font-size:10px">v20260730-1302</span>`;
 }
 function go(v){ curView=v; document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));
   buildNav();
-  const titles={dash:'Dashboard',contrib:'Tanzania',guests:'Guest list',rwanda:'Rwanda',budget:'Budget & spend',exchange:'Grand total (currency exchange)',dispatch:'Dispatcher',review:'Review pledges',activity:'Activity log',admin:'Admin'};
+  const titles={dash:'Dashboard',contrib:'Tanzania',guests:'Guest list',rwanda:'Rwanda',budget:'Budget & spend',exchange:'Grand total (currency exchange)',insights:'Insights & follow-up',dispatch:'Dispatcher',review:'Review pledges',activity:'Activity log',admin:'Admin'};
   document.getElementById('viewTitle').textContent=titles[v]||v;
   if(window.innerWidth<680) document.getElementById('sidebar').classList.add('collapsed');
   render();
@@ -439,6 +440,7 @@ function render(){
   else if(curView==='contrib') c.innerHTML=viewContrib();
   else if(curView==='guests') c.innerHTML=viewGuests();
   else if(curView==='rwanda') c.innerHTML=viewRwanda();
+  else if(curView==='insights') c.innerHTML=viewInsights();
   else if(curView==='budget') c.innerHTML=viewBudget();
   else if(curView==='exchange'){ c.innerHTML=viewExchange(); loadRates(); }
   else if(curView==='dispatch') c.innerHTML=viewDispatch();
@@ -841,9 +843,11 @@ function viewExchange(){
 }
 
 /* ===== BUDGET ===== */
+let budCur='';
 function viewBudget(){
   const b=budgetTotals(), t=totals();
-  const items=SPEND.filter(s=>!/damage|total|michango|gap|case|amounts$/i.test(s.item)&&(+s.budget||0)>0);
+  let items=SPEND.filter(s=>!/damage|total|michango|gap|case|amounts$/i.test(s.item)&&(+s.budget||0)>0);
+  if(budCur) items=items.filter(s=>(s.currency||'TZS')===budCur);
   return `
   <div class="kpi-row">
     <div class="kpi k-deep"><div class="kpi-lbl">Total event cost</div><div class="kpi-val">${money(b.totalCost)}</div><div class="kpi-sub">${b.eventItems} wedding items · ${money(b.eventSpent)} spent</div></div>
@@ -875,6 +879,13 @@ function viewBudget(){
     <div class="chart-wrap sm"><canvas id="budgetChart"></canvas></div></div>
   <div class="panel"><div class="panel-h"><h3>Spend breakdown</h3>
       ${can.write()?`<button class="btn btn-primary btn-sm" onclick="openSpend()">+ Add budget item</button>`:'<span class="sub">read-only — admins can edit</span>'}</div>
+    <div class="controls" style="margin-bottom:10px">
+      <select onchange="budCur=this.value;render()">
+        <option value="">All currencies</option>
+        ${[...new Set(SPEND.filter(isWeddingItem).concat(SPEND).map(s=>s.currency||'TZS'))].sort().map(c=>`<option value="${c}" ${budCur===c?'selected':''}>${c} only</option>`).join('')}
+      </select>
+      ${budCur?`<button class="btn btn-ghost btn-sm" onclick="budCur='';render()">Clear</button>`:''}
+    </div>
     ${items.length?(()=>{
       const mixed=[...new Set(items.map(s=>s.currency||'TZS'))].length>1;
       const totB=items.reduce((a,s)=>a+toTZS(s.budget,s.currency),0);
@@ -972,6 +983,92 @@ function buildDispatch(){
 function copyDisp(){ const el=document.getElementById('dispMsg'); el.select(); navigator.clipboard.writeText(el.value).then(()=>toast('Message copied')); }
 function waShare(){ window.open('https://wa.me/?text='+encodeURIComponent(buildDispatch()),'_blank'); }
 
+
+
+/* ===== INSIGHTS & FOLLOW-UP ===== */
+function viewInsights(){
+  const t=totals(), b=budgetTotals();
+  const cd=countdownParts();
+  const days=cd?Math.max(cd.d,1):1;
+  const gap=Math.max(b.totalCost-t.paid,0);
+  const perDay=gap/days;
+
+  // everyone who still owes, biggest first — this is the chase list
+  const owing=GUESTS.filter(g=>isPledger(g)&&tzs(g)&&(+g.pledged||0)>(+g.paid||0))
+    .map(g=>({...g,out:(+g.pledged||0)-(+g.paid||0)}))
+    .sort((a,b)=>b.out-a.out);
+  const top=owing.slice(0,12);
+  const topSum=top.reduce((s,g)=>s+g.out,0);
+  const pctFromTop=t.out?Math.round(topSum/t.out*100):0;
+
+  // people who have part-paid — warmest leads
+  const partial=owing.filter(g=>(+g.paid||0)>0);
+
+  // handler performance
+  const hm={};
+  GUESTS.filter(g=>isPledger(g)&&tzs(g)).forEach(g=>{
+    const k=g.handler||'— unassigned';
+    hm[k]=hm[k]||{exp:0,rec:0,n:0,owing:0};
+    hm[k].n++; hm[k].exp+=+g.pledged||0; hm[k].rec+=+g.paid||0;
+    if((+g.pledged||0)>(+g.paid||0)) hm[k].owing++;
+  });
+  const handlers=Object.entries(hm).sort((a,b)=>b[1].exp-a[1].exp);
+
+  const bar=(pct,col)=>`<div style="background:var(--line);border-radius:6px;height:7px;overflow:hidden;min-width:70px"><i style="display:block;height:100%;width:${Math.min(pct,100)}%;background:${col}"></i></div>`;
+
+  return `
+  <div class="kpi-row">
+    <div class="kpi k-coral"><div class="kpi-lbl">Still to raise</div><div class="kpi-val">${money(gap)}</div><div class="kpi-sub">to cover ${M(b.totalCost)} event cost</div></div>
+    <div class="kpi k-butter"><div class="kpi-lbl">Needed per day</div><div class="kpi-val">${money(Math.round(perDay))}</div><div class="kpi-sub">${days} days to the wedding</div></div>
+    <div class="kpi k-teal"><div class="kpi-lbl">Pledged not yet paid</div><div class="kpi-val">${money(t.out)}</div><div class="kpi-sub">${owing.length} people owing</div></div>
+    <div class="kpi k-deep"><div class="kpi-lbl">Top 12 owing</div><div class="kpi-val">${pctFromTop}%</div><div class="kpi-sub">of all outstanding money</div></div>
+  </div>
+
+  <div class="banner"><span>◔</span><div>${gap>t.out
+      ? `Even if <b>every</b> pledge is paid, you'd still be ${money(gap-t.out)} short of the ${M(b.totalCost)} event cost — new pledges are needed, not just collections.`
+      : `If everyone who has pledged pays up, you'll cover the event cost with ${money(t.out-gap)} to spare. The task is collection, not fundraising.`}</div></div>
+
+  <div class="panel">
+    <div class="panel-h"><h3>Chase list — biggest amounts outstanding</h3><span class="sub">${pctFromTop}% of what's owed sits with these ${top.length}</span></div>
+    <p class="mini" style="margin-bottom:10px">Sorted by how much is still owed. Working down this list clears the most money for the least effort.</p>
+    ${top.length?`<div style="overflow-x:auto"><table class="tbl">
+      <thead><tr><th>Name</th><th>Handler</th><th class="num">Pledged</th><th class="num">Paid</th><th class="num">Outstanding</th><th>Status</th></tr></thead>
+      <tbody>${top.map(g=>`<tr>
+        <td><b>${esc(g.name)}</b></td>
+        <td class="muted">${esc(g.handler||'—')}</td>
+        <td class="num muted">${money(g.pledged)}</td>
+        <td class="num muted">${money(g.paid)}</td>
+        <td class="num"><b>${money(g.out)}</b></td>
+        <td>${(+g.paid||0)>0?'<span class="tag tag-partial">part-paid</span>':'<span class="tag tag-pledged">not started</span>'}</td>
+      </tr>`).join('')}</tbody></table></div>`:'<p class="muted center" style="padding:24px 0">Nothing outstanding — everyone has paid.</p>'}
+  </div>
+
+  ${partial.length?`<div class="panel">
+    <div class="panel-h"><h3>Part-paid — warmest follow-ups</h3><span class="sub">${partial.length} people</span></div>
+    <p class="mini" style="margin-bottom:10px">These have already sent something, so they're the most likely to complete. Together they owe ${money(partial.reduce((s,g)=>s+g.out,0))}.</p>
+    <div style="overflow-x:auto"><table class="tbl">
+      <thead><tr><th>Name</th><th>Handler</th><th class="num">Owes</th><th>Progress</th></tr></thead>
+      <tbody>${partial.map(g=>{const pct=Math.round((+g.paid||0)/(+g.pledged||1)*100);
+        return `<tr><td><b>${esc(g.name)}</b></td><td class="muted">${esc(g.handler||'—')}</td>
+        <td class="num">${money(g.out)}</td>
+        <td style="min-width:130px">${bar(pct,'var(--teal)')}<span class="mini muted">${pct}% paid</span></td></tr>`;}).join('')}</tbody>
+    </table></div></div>`:''}
+
+  <div class="panel">
+    <div class="panel-h"><h3>By handler</h3><span class="sub">who is collecting, and who still has work</span></div>
+    <div style="overflow-x:auto"><table class="tbl">
+      <thead><tr><th>Handler</th><th class="num">People</th><th class="num">Pledged</th><th class="num">Collected</th><th class="num">Outstanding</th><th>Rate</th><th class="num">Still owing</th></tr></thead>
+      <tbody>${handlers.map(([k,v])=>{const pct=v.exp?Math.round(v.rec/v.exp*100):0;
+        return `<tr><td><b>${esc(k)}</b></td>
+        <td class="num muted">${v.n}</td>
+        <td class="num muted">${money(v.exp)}</td>
+        <td class="num">${money(v.rec)}</td>
+        <td class="num">${money(v.exp-v.rec)}</td>
+        <td style="min-width:130px">${bar(pct,pct>=70?'var(--teal)':pct>=40?'#C4A24C':'var(--coral)')}<span class="mini muted">${pct}%</span></td>
+        <td class="num muted">${v.owing}</td></tr>`;}).join('')}</tbody>
+    </table></div>
+  </div>`;
+}
 
 /* ===== ACTIVITY LOG ===== */
 let ACTIVITY=[], actFilter={who:'',what:''};
