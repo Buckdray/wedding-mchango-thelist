@@ -134,7 +134,14 @@ input,select{font-family:inherit}
 .hcard .hc{flex:1;min-width:130px;background:var(--cream);border-radius:11px;padding:13px 15px;border:1px solid var(--line)}
 .hc-v{font-size:19px;font-weight:700}
 .hc-l{font-size:11.5px;color:var(--muted)}
-@media(max-width:680px){.sidebar{position:fixed;top:0;left:0;z-index:50;height:100vh;box-shadow:8px 0 30px rgba(0,0,0,.2)}.sidebar.collapsed{width:0;min-width:0;overflow:hidden}.content{padding:16px}}
+@media(max-width:680px){.sidebar{position:fixed;top:0;left:0;z-index:50;height:100vh;box-shadow:8px 0 30px rgba(0,0,0,.2)}.sidebar.collapsed{width:0;min-width:0;overflow:hidden}.content{padding:16px}
+  .tbl.budget-tbl th:nth-child(2),.tbl.budget-tbl td:nth-child(2),
+  .tbl.budget-tbl th:nth-child(5),.tbl.budget-tbl td:nth-child(5),
+  .tbl.budget-tbl th:nth-child(6),.tbl.budget-tbl td:nth-child(6){display:none}
+  .tbl th,.tbl td{padding:9px 8px;font-size:13px}
+  .cd-panel{padding:14px 16px}.cd-n{font-size:19px}.cd-u{min-width:52px;padding:7px 10px}}
+.lnk-edit{cursor:pointer;border-bottom:1px dashed var(--line)}
+.lnk-edit:hover{color:var(--teal);border-bottom-color:var(--teal)}
 </style>
 </head><body>
 <!-- LOGIN -->
@@ -338,7 +345,7 @@ function buildNav(){
     b.onclick=()=>go(n.id);
     nav.appendChild(b);
   });
-  document.getElementById('sbFoot').innerHTML=`<span id="sbCount">${(()=>{const c=countdownParts();return c?c.d+' days to go':'Today! 🎉';})()}</span><br>${GUESTS.length} guests · ${GUESTS.filter(isPledger).length} pledgers<br><span style="opacity:.45;font-size:10px">v20260729-1604</span>`;
+  document.getElementById('sbFoot').innerHTML=`<span id="sbCount">${(()=>{const c=countdownParts();return c?c.d+' days to go':'Today! 🎉';})()}</span><br>${GUESTS.length} guests · ${GUESTS.filter(isPledger).length} pledgers<br><span style="opacity:.45;font-size:10px">v20260730-1209</span>`;
 }
 function go(v){ curView=v; document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));
   buildNav();
@@ -483,11 +490,23 @@ function toTZS(amount,cur){
   return n;   // TZS or unset
 }
 const CUR_SYMBOL={TZS:'TZS',USD:'$',KES:'KES',RWF:'RWF'};
+// Items the mchango is actually funding = the wedding event.
+// Personal costs (rings, flights, dot) are excluded, as are subtotal rows.
+function isWeddingItem(s){
+  if(/damage|total|michango|gap|case|amounts$/i.test(s.item)) return false;
+  if((s.currency||'TZS')!=='TZS') return false;              // USD/KES lines are personal
+  return !/^(dot|dot goods|dot hosting|st peters)$/i.test((s.item||'').trim());
+}
 function budgetTotals(){
+  const wed=SPEND.filter(isWeddingItem);
+  // Sum the real line items. Fall back to a stored total only if there are none.
+  const summed=wed.reduce((a,x)=>a+(+x.budget||0),0);
   const dmg=SPEND.find(s=>/damage|total/i.test(s.item));
-  const totalCost=dmg?dmg.budget:SPEND.reduce((s,x)=>s+(+x.budget||0),0);
+  const totalCost = summed>0 ? summed : (dmg?+dmg.budget||0:0);
+  const eventSpent=wed.reduce((a,x)=>a+(+x.spent||0),0);
   const t=totals();
-  return {totalCost,gapBest:totalCost-t.pledged,gapWorst:totalCost-t.paid};
+  return {totalCost,eventSpent,eventItems:wed.length,
+          gapBest:totalCost-t.pledged,gapWorst:totalCost-t.paid};
 }
 function byCategory(){
   const m={};
@@ -827,7 +846,7 @@ function viewBudget(){
   const items=SPEND.filter(s=>!/damage|total|michango|gap|case|amounts$/i.test(s.item)&&(+s.budget||0)>0);
   return `
   <div class="kpi-row">
-    <div class="kpi k-deep"><div class="kpi-lbl">Total event cost</div><div class="kpi-val">${money(b.totalCost)}</div><div class="kpi-sub">the "damage"</div></div>
+    <div class="kpi k-deep"><div class="kpi-lbl">Total event cost</div><div class="kpi-val">${money(b.totalCost)}</div><div class="kpi-sub">${b.eventItems} wedding items · ${money(b.eventSpent)} spent</div></div>
     <div class="kpi k-teal"><div class="kpi-lbl">Pledged so far</div><div class="kpi-val">${money(t.pledged)}</div><div class="kpi-sub">${Math.round(t.pledged/b.totalCost*100)}% of cost</div></div>
     <div class="kpi k-coral"><div class="kpi-lbl">Gap (best case)</div><div class="kpi-val">${money(b.gapBest)}</div><div class="kpi-sub">if all pledges land</div></div>
     <div class="kpi k-butter"><div class="kpi-lbl">Gap (worst case)</div><div class="kpi-val">${money(b.gapWorst)}</div><div class="kpi-sub neg">on cash in hand</div></div>
@@ -860,11 +879,11 @@ function viewBudget(){
       const mixed=[...new Set(items.map(s=>s.currency||'TZS'))].length>1;
       const totB=items.reduce((a,s)=>a+toTZS(s.budget,s.currency),0);
       const totS=items.reduce((a,s)=>a+toTZS(s.spent,s.currency),0);
-      return `${mixed?`<p class="mini" style="margin-bottom:10px">This budget mixes currencies. The <b>TZS-equiv</b> column converts each line using the rates on the <a onclick="go('exchange')" style="color:var(--teal);cursor:pointer;text-decoration:underline">Grand total</a> page (1 USD = ${FX.usd.toFixed(0)}, 1 KES = ${FX.kes.toFixed(2)}, 1 RWF = ${FX.rwf.toFixed(2)}).</p>`:''}
-      <div style="overflow-x:auto"><table class="tbl">
+      return `${can.write()?'<p class="mini" style="margin-bottom:8px">Tap an item name to edit it.</p>':''}${mixed?`<p class="mini" style="margin-bottom:10px">This budget mixes currencies. The <b>TZS-equiv</b> column converts each line using the rates on the <a onclick="go('exchange')" style="color:var(--teal);cursor:pointer;text-decoration:underline">Grand total</a> page (1 USD = ${FX.usd.toFixed(0)}, 1 KES = ${FX.kes.toFixed(2)}, 1 RWF = ${FX.rwf.toFixed(2)}).</p>`:''}
+      <div style="overflow-x:auto"><table class="tbl budget-tbl">
       <thead><tr><th>Item</th><th>Cur</th><th class="num">Budget</th><th class="num">Spent</th><th class="num">Remaining</th>${mixed?'<th class="num">TZS-equiv</th>':''}${can.write()?'<th></th>':''}</tr></thead>
       <tbody>${items.map(s=>{const cur=s.currency||'TZS'; const rem=(+s.budget||0)-(+s.spent||0);
-        return `<tr><td><b>${esc(s.item)}</b></td>
+        return `<tr><td>${can.write()?`<b class="lnk-edit" onclick="openSpend(${s.id})">${esc(s.item)}</b>`:`<b>${esc(s.item)}</b>`}</td>
         <td><span class="tag tag-cat">${cur}</span></td>
         <td class="num">${money(s.budget)}</td>
         <td class="num muted">${money(s.spent)}</td>
