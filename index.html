@@ -346,7 +346,7 @@ function buildNav(){
     b.onclick=()=>go(n.id);
     nav.appendChild(b);
   });
-  document.getElementById('sbFoot').innerHTML=`<span id="sbCount">${(()=>{const c=countdownParts();return c?c.d+' days to go':'Today! 🎉';})()}</span><br>${GUESTS.length} guests · ${GUESTS.filter(isPledger).length} pledgers<br><span style="opacity:.45;font-size:10px">v20260730-1302</span>`;
+  document.getElementById('sbFoot').innerHTML=`<span id="sbCount">${(()=>{const c=countdownParts();return c?c.d+' days to go':'Today! 🎉';})()}</span><br>${GUESTS.length} guests · ${GUESTS.filter(isPledger).length} pledgers<br><span style="opacity:.45;font-size:10px">v20260730-1315</span>`;
 }
 function go(v){ curView=v; document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));
   buildNav();
@@ -499,16 +499,30 @@ function isWeddingItem(s){
   if((s.currency||'TZS')!=='TZS') return false;              // USD/KES lines are personal
   return !/^(dot|dot goods|dot hosting|st peters)$/i.test((s.item||'').trim());
 }
+// Every contribution, converted to TZS — Tanzania + Rwanda (RWF) + diaspora (USD).
+// The wedding is funded by all of them, so the gap must count all of them.
+function fundingAllCurrencies(){
+  const tz=totals(), rw=curTotals('RWF'), us=curTotals('USD');
+  return {
+    tzPledged:tz.pledged, tzPaid:tz.paid,
+    rwPledged:rw.pledged, rwPaid:rw.paid,
+    usPledged:us.pledged, usPaid:us.paid,
+    rwPledgedTZS:rw.pledged*FX.rwf, rwPaidTZS:rw.paid*FX.rwf,
+    usPledgedTZS:us.pledged*FX.usd, usPaidTZS:us.paid*FX.usd,
+    pledged: tz.pledged + rw.pledged*FX.rwf + us.pledged*FX.usd,
+    paid:    tz.paid    + rw.paid*FX.rwf    + us.paid*FX.usd
+  };
+}
 function budgetTotals(){
   const wed=SPEND.filter(isWeddingItem);
-  // Sum the real line items. Fall back to a stored total only if there are none.
   const summed=wed.reduce((a,x)=>a+(+x.budget||0),0);
   const dmg=SPEND.find(s=>/damage|total/i.test(s.item));
   const totalCost = summed>0 ? summed : (dmg?+dmg.budget||0:0);
   const eventSpent=wed.reduce((a,x)=>a+(+x.spent||0),0);
-  const t=totals();
-  return {totalCost,eventSpent,eventItems:wed.length,
-          gapBest:totalCost-t.pledged,gapWorst:totalCost-t.paid};
+  const f=fundingAllCurrencies();
+  return {totalCost,eventSpent,eventItems:wed.length,f,
+          pledged:f.pledged, paid:f.paid,
+          gapBest:totalCost-f.pledged, gapWorst:totalCost-f.paid};
 }
 function byCategory(){
   const m={};
@@ -851,8 +865,8 @@ function viewBudget(){
   return `
   <div class="kpi-row">
     <div class="kpi k-deep"><div class="kpi-lbl">Total event cost</div><div class="kpi-val">${money(b.totalCost)}</div><div class="kpi-sub">${b.eventItems} wedding items · ${money(b.eventSpent)} spent</div></div>
-    <div class="kpi k-teal"><div class="kpi-lbl">Pledged so far</div><div class="kpi-val">${money(t.pledged)}</div><div class="kpi-sub">${Math.round(t.pledged/b.totalCost*100)}% of cost</div></div>
-    <div class="kpi k-coral"><div class="kpi-lbl">Gap (best case)</div><div class="kpi-val">${money(b.gapBest)}</div><div class="kpi-sub">if all pledges land</div></div>
+    <div class="kpi k-teal"><div class="kpi-lbl">Pledged so far</div><div class="kpi-val">${money(Math.round(b.pledged))}</div><div class="kpi-sub">${Math.round(b.pledged/b.totalCost*100)}% of cost · all currencies</div></div>
+    <div class="kpi k-coral"><div class="kpi-lbl">Gap (best case)</div><div class="kpi-val">${money(Math.round(b.gapBest))}</div><div class="kpi-sub">if all pledges land</div></div>
     <div class="kpi k-butter"><div class="kpi-lbl">Gap (worst case)</div><div class="kpi-val">${money(b.gapWorst)}</div><div class="kpi-sub neg">on cash in hand</div></div>
   </div>
   ${(()=>{
@@ -875,6 +889,15 @@ function viewBudget(){
       ${keys.length>1?`<p class="mini" style="margin-top:10px">Combined: <b>${money(Math.round(grand))} TZS-equivalent</b> budgeted · ${money(Math.round(grandSpent))} spent · ${money(Math.round(grand-grandSpent))} remaining</p>`:''}
     </div>`;
   })()}
+  <div class="panel"><div class="panel-h"><h3>Where the funding comes from</h3><span class="sub">all streams, converted to TZS</span></div>
+    <div class="hcard">
+      <div class="hc" style="border-left:4px solid #08D9D6"><div class="hc-v">${money(b.f.tzPaid)}</div><div class="hc-l">Tanzania (TZS) · ${money(b.f.tzPledged)} pledged</div></div>
+      <div class="hc" style="border-left:4px solid #FF2E63"><div class="hc-v">${money(Math.round(b.f.rwPaidTZS))}</div><div class="hc-l">Rwanda · RWF ${Number(b.f.rwPaid).toLocaleString()} of ${Number(b.f.rwPledged).toLocaleString()}</div></div>
+      <div class="hc" style="border-left:4px solid #252A34"><div class="hc-v">${money(Math.round(b.f.usPaidTZS))}</div><div class="hc-l">Diaspora · $${Number(b.f.usPaid).toLocaleString()} of $${Number(b.f.usPledged).toLocaleString()}</div></div>
+      <div class="hc"><div class="hc-v">${money(Math.round(b.paid))}</div><div class="hc-l">total collected · TZS-equivalent</div></div>
+    </div>
+    <p class="mini" style="margin-top:10px">Rwanda and diaspora money is converted at the rates on the <a onclick="go('exchange')" style="color:var(--teal);cursor:pointer;text-decoration:underline">Grand total</a> page. Gaps above count <b>all</b> streams.</p>
+  </div>
   <div class="panel"><div class="panel-h"><h3>Funding vs cost</h3><span class="sub">how far pledges & cash cover the ${M(b.totalCost)} bill</span></div>
     <div class="chart-wrap sm"><canvas id="budgetChart"></canvas></div></div>
   <div class="panel"><div class="panel-h"><h3>Spend breakdown</h3>
