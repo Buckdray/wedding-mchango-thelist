@@ -346,7 +346,7 @@ function buildNav(){
     b.onclick=()=>go(n.id);
     nav.appendChild(b);
   });
-  document.getElementById('sbFoot').innerHTML=`<span id="sbCount">${(()=>{const c=countdownParts();return c?c.d+' days to go':'Today! 🎉';})()}</span><br>${GUESTS.length} guests · ${GUESTS.filter(isPledger).length} pledgers<br><span style="opacity:.45;font-size:10px">v20260730-1315</span>`;
+  document.getElementById('sbFoot').innerHTML=`<span id="sbCount">${(()=>{const c=countdownParts();return c?c.d+' days to go':'Today! 🎉';})()}</span><br>${GUESTS.length} guests · ${GUESTS.filter(isPledger).length} pledgers<br><span style="opacity:.45;font-size:10px">v20260805-1053</span>`;
 }
 function go(v){ curView=v; document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));
   buildNav();
@@ -1008,6 +1008,100 @@ function waShare(){ window.open('https://wa.me/?text='+encodeURIComponent(buildD
 
 
 
+
+/* ===== PAYMENT REMINDERS ===== */
+// Several phrasings so repeat nudges don't read like a form letter.
+// Tone runs gentle -> warmer as the wedding approaches.
+const PAY_TZ = 'Stanbic Bank: 9120003845239\nMixx by Yas: 0715123050\nSelcom Pesa/Mpesa: 0756444796\nJina: Irene Mlaki';
+const PAY_RW = 'Momo: 0789178174\nAmabilis Bukangwa Andrew';
+
+const REMINDERS_SW = [
+  {label:'Ukumbusho wa upole', body:(n,a,d)=>`Habari ${n}, natumaini u mzima. 🌿\n\nNi ukumbusho tu wa mchango wa harusi ya Arnold Bukangwa tarehe 22 Agosti. Ahadi yako ni *${a}/-*.\n\nUkipata nafasi, unaweza kutuma kupitia:\n{PAY}\n\nAsante sana kwa kujitoa kwako. Mungu akubariki.`},
+  {label:'Siku zinakaribia', body:(n,a,d)=>`Habari ${n}! 💐\n\nHarusi ya Arnold imebaki *siku ${d}*. Tunakamilisha maandalizi, na mchango wako wa *${a}/-* utatusaidia sana.\n\nNamba za malipo:\n{PAY}\n\nAsante kwa moyo wako mwema. 🙏🏽`},
+  {label:'Fupi na moja kwa moja', body:(n,a,d)=>`Habari ${n}, ukumbusho wa mchango wa harusi ya Arnold — *${a}/-*. Siku ${d} zimebaki.\n\n{PAY}\n\nAsante! 🌿`},
+  {label:'Shukrani mapema', body:(n,a,d)=>`Habari ${n}, 🙏🏽\n\nAsante kwa ahadi yako ya *${a}/-* kwa harusi ya Arnold. Tunathamini sana.\n\nUkiwa tayari kutuma:\n{PAY}\n\nTunatanguliza shukrani zetu za dhati. Mungu akubariki sana.`},
+  {label:'Malizia salio', body:(n,a,d)=>`Habari ${n}, natumaini u salama.\n\nAsante kwa mchango uliokwisha tuma. Salio lililobaki ni *${a}/-*.\n\n{PAY}\n\nAsante sana! 🌿`}
+];
+const REMINDERS_EN = [
+  {label:'Gentle nudge', body:(n,a,d)=>`Hi ${n}, hope you're well. 🌿\n\nJust a gentle reminder about Arnold's wedding contribution on 22 August. Your pledge is *${a}/-*.\n\nWhenever convenient:\n{PAY}\n\nThank you so much for your support.`},
+  {label:'Counting down', body:(n,a,d)=>`Hi ${n}! 💐\n\nArnold's wedding is *${d} days* away and we're finalising preparations. Your contribution of *${a}/-* would help a great deal.\n\nPayment details:\n{PAY}\n\nThank you for your kindness. 🙏🏽`},
+  {label:'Short & direct', body:(n,a,d)=>`Hi ${n}, a reminder about Arnold's wedding contribution — *${a}/-*. ${d} days to go.\n\n{PAY}\n\nThank you! 🌿`},
+  {label:'Thanks in advance', body:(n,a,d)=>`Hi ${n}, 🙏🏽\n\nThank you for pledging *${a}/-* towards Arnold's wedding — it means a lot.\n\nWhen you're ready:\n{PAY}\n\nWith sincere gratitude.`},
+  {label:'Balance remaining', body:(n,a,d)=>`Hi ${n}, hope you're keeping well.\n\nThank you for what you've already sent. The remaining balance is *${a}/-*.\n\n{PAY}\n\nMuch appreciated! 🌿`}
+];
+const REMINDERS_RW = [
+  {label:'Kwibutsa buhoro', body:(n,a,d)=>`Muraho ${n}, 🌿\n\nTurabibutsa ku bwo gushyigikira ubukwe bwa Arnold Bukangwa ku itariki 22 Kanama. Icyo wiyemeje ni *${a}*.\n\nWabinyuza kuri:\n{PAY}\n\nMurakoze cyane. Imana ibahe umugisha.`},
+  {label:'Iminsi irashize', body:(n,a,d)=>`Muraho ${n}! 💐\n\nHasigaye *iminsi ${d}* ngo ubukwe bwa Arnold bube. Umusanzu wawe wa *${a}* wadufasha cyane.\n\n{PAY}\n\nMurakoze ku mutima mwiza. 🙏🏽`},
+  {label:'Ngufi', body:(n,a,d)=>`Muraho ${n}, twibutsa umusanzu w'ubukwe bwa Arnold — *${a}*. Hasigaye iminsi ${d}.\n\n{PAY}\n\nMurakoze! 🌿`},
+  {label:'Gushimira', body:(n,a,d)=>`Muraho ${n}, 🙏🏽\n\nMurakoze kwiyemeza *${a}* ku bukwe bwa Arnold. Turabishimira cyane.\n\nNimumara gutegura:\n{PAY}\n\nImana ibahe umugisha.`},
+  {label:'Gusoza', body:(n,a,d)=>`Muraho ${n}, murakoze ku byo mwohereje. Ibisigaye ni *${a}*.\n\n{PAY}\n\nMurakoze cyane! 🌿`}
+];
+
+let remIdx=0;
+function openReminder(id){
+  const g=GUESTS.find(x=>x.id===id); if(!g) return;
+  const cd=countdownParts(); const days=cd?cd.d:0;
+  const isRW = g.source==='WhatsApp-RW';
+  const out=(+g.pledged||0)-(+g.paid||0);
+  const partial=(+g.paid||0)>0;
+  remIdx=0;
+  window._remCtx={g,days,isRW,out,partial};
+  drawReminder();
+}
+function reminderSets(){
+  const {isRW}=window._remCtx;
+  return isRW ? {rw:REMINDERS_RW, en:REMINDERS_EN} : {sw:REMINDERS_SW, en:REMINDERS_EN};
+}
+let remLang='';
+function drawReminder(){
+  const {g,days,isRW,out,partial}=window._remCtx;
+  const sets=reminderSets();
+  if(!remLang || !sets[remLang]) remLang=Object.keys(sets)[0];
+  const list=sets[remLang];
+  // if they've part-paid, prefer the "balance remaining" wording
+  const idx = remIdx % list.length;
+  const amt = (g.currency==='USD'?'$':'')+Number(out).toLocaleString('en-US');
+  const pay = isRW ? PAY_RW : PAY_TZ;
+  const msg = list[idx].body(g.name, amt, days).replace('{PAY}', pay);
+  const langName={sw:'Kiswahili',en:'English',rw:'Kinyarwanda'};
+  document.getElementById('modalHost').innerHTML=`
+  <div class="modal-bg" onclick="if(event.target===this)closeModal()">
+    <div class="modal" style="max-width:520px">
+      <h3>Reminder for ${esc(g.name)}</h3>
+      <p class="mini" style="margin-top:-6px">Owes <b>${esc(amt)}</b>${partial?` · already paid ${money(g.paid)}`:''} · ${days} days to the wedding</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0">
+        ${Object.keys(sets).map(k=>`<button class="btn btn-sm ${remLang===k?'btn-primary':'btn-ghost'}" onclick="remLang='${k}';drawReminder()">${langName[k]}</button>`).join('')}
+        <button class="btn btn-ghost btn-sm" style="margin-left:auto" onclick="remIdx++;drawReminder()">↻ Different wording</button>
+      </div>
+      <p class="mini" style="margin-bottom:6px">Style: <b>${esc(list[idx].label)}</b> (${idx+1} of ${list.length})</p>
+      <textarea id="remMsg" style="width:100%;height:210px;padding:13px;border:1px solid var(--line);border-radius:11px;font-size:13px;background:var(--cream);color:var(--ink)">${esc(msg)}</textarea>
+      <p class="mini">Edit freely before sending — this is a starting point, not a script.</p>
+      <div class="modal-foot">
+        <span></span>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+          <button class="btn btn-ghost" onclick="copyReminder()">Copy</button>
+          <button class="btn btn-primary" onclick="sendReminder()">Open WhatsApp</button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+function copyReminder(){
+  const ta=document.getElementById('remMsg'); ta.select();
+  try{ document.execCommand('copy'); toast('Message copied'); }catch(e){ toast('Select and copy manually'); }
+}
+function sendReminder(){
+  const {g}=window._remCtx;
+  const txt=document.getElementById('remMsg').value;
+  const phone=(g.phone||'').replace(/[^0-9]/g,'');
+  const url = phone
+    ? `https://wa.me/${phone}?text=${encodeURIComponent(txt)}`
+    : `https://wa.me/?text=${encodeURIComponent(txt)}`;
+  window.open(url,'_blank');
+  closeModal();
+}
+
 /* ===== INSIGHTS & FOLLOW-UP ===== */
 function viewInsights(){
   const t=totals(), b=budgetTotals();
@@ -1055,7 +1149,7 @@ function viewInsights(){
     <div class="panel-h"><h3>Chase list — biggest amounts outstanding</h3><span class="sub">${pctFromTop}% of what's owed sits with these ${top.length}</span></div>
     <p class="mini" style="margin-bottom:10px">Sorted by how much is still owed. Working down this list clears the most money for the least effort.</p>
     ${top.length?`<div style="overflow-x:auto"><table class="tbl">
-      <thead><tr><th>Name</th><th>Handler</th><th class="num">Pledged</th><th class="num">Paid</th><th class="num">Outstanding</th><th>Status</th></tr></thead>
+      <thead><tr><th>Name</th><th>Handler</th><th class="num">Pledged</th><th class="num">Paid</th><th class="num">Outstanding</th><th>Status</th><th></th></tr></thead>
       <tbody>${top.map(g=>`<tr>
         <td><b>${esc(g.name)}</b></td>
         <td class="muted">${esc(g.handler||'—')}</td>
@@ -1063,6 +1157,7 @@ function viewInsights(){
         <td class="num muted">${money(g.paid)}</td>
         <td class="num"><b>${money(g.out)}</b></td>
         <td>${(+g.paid||0)>0?'<span class="tag tag-partial">part-paid</span>':'<span class="tag tag-pledged">not started</span>'}</td>
+        <td class="rt"><button class="btn btn-ghost btn-sm" onclick="openReminder(${g.id})">Remind</button></td>
       </tr>`).join('')}</tbody></table></div>`:'<p class="muted center" style="padding:24px 0">Nothing outstanding — everyone has paid.</p>'}
   </div>
 
@@ -1070,11 +1165,12 @@ function viewInsights(){
     <div class="panel-h"><h3>Part-paid — warmest follow-ups</h3><span class="sub">${partial.length} people</span></div>
     <p class="mini" style="margin-bottom:10px">These have already sent something, so they're the most likely to complete. Together they owe ${money(partial.reduce((s,g)=>s+g.out,0))}.</p>
     <div style="overflow-x:auto"><table class="tbl">
-      <thead><tr><th>Name</th><th>Handler</th><th class="num">Owes</th><th>Progress</th></tr></thead>
+      <thead><tr><th>Name</th><th>Handler</th><th class="num">Owes</th><th>Progress</th><th></th></tr></thead>
       <tbody>${partial.map(g=>{const pct=Math.round((+g.paid||0)/(+g.pledged||1)*100);
         return `<tr><td><b>${esc(g.name)}</b></td><td class="muted">${esc(g.handler||'—')}</td>
         <td class="num">${money(g.out)}</td>
-        <td style="min-width:130px">${bar(pct,'var(--teal)')}<span class="mini muted">${pct}% paid</span></td></tr>`;}).join('')}</tbody>
+        <td style="min-width:130px">${bar(pct,'var(--teal)')}<span class="mini muted">${pct}% paid</span></td>
+        <td class="rt"><button class="btn btn-ghost btn-sm" onclick="openReminder(${g.id})">Remind</button></td></tr>`;}).join('')}</tbody>
     </table></div></div>`:''}
 
   <div class="panel">
