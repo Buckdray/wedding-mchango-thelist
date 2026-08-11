@@ -315,7 +315,7 @@ async function doLogin(){
   document.getElementById('whoName').textContent=ME.name;
   document.getElementById('whoRole').textContent=ME.role.replace('_',' ');
   document.getElementById('modePill').textContent=LIVE?'Live':'Offline';
-  refreshPendingCount(); subscribePending(); startCountdown(); buildNav(); go(ROLE_RANK[ME.role]>=1?'dash':'dash');
+  refreshPendingCount(); subscribePending(); subscribeData(); startCountdown(); buildNav(); go(ROLE_RANK[ME.role]>=1?'dash':'dash');
 }
 function doLogout(){ ME=null; document.getElementById('appView').classList.add('hidden'); document.getElementById('loginView').classList.remove('hidden'); document.getElementById('liPass').value=''; }
 function toggleSidebar(){ document.getElementById('sidebar').classList.toggle('collapsed'); }
@@ -346,7 +346,7 @@ function buildNav(){
     b.onclick=()=>go(n.id);
     nav.appendChild(b);
   });
-  document.getElementById('sbFoot').innerHTML=`<span id="sbCount">${(()=>{const c=countdownParts();return c?c.d+' days to go':'Today! 🎉';})()}</span><br>${GUESTS.length} guests · ${GUESTS.filter(isPledger).length} pledgers<br><span style="opacity:.45;font-size:10px">v20260805-1053</span>`;
+  document.getElementById('sbFoot').innerHTML=`<span id="sbCount">${(()=>{const c=countdownParts();return c?c.d+' days to go':'Today! 🎉';})()}</span><br>${GUESTS.length} guests · ${GUESTS.filter(isPledger).length} pledgers<br><span style="opacity:.45;font-size:10px">v20260811-1832</span>`;
 }
 function go(v){ curView=v; document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));
   buildNav();
@@ -424,6 +424,41 @@ async function refreshPendingCount(){
     else { const subs=JSON.parse(localStorage.getItem('mc_subs')||'[]'); window.PENDING_COUNT=subs.filter(s=>s.status==='pending').length; }
   }catch(e){ window.PENDING_COUNT=0; }
   buildNav();
+}
+let _dataSub=null, _refreshTimer=null;
+function subscribeData(){
+  if(!LIVE||_dataSub) return;
+  try{
+    _dataSub=sb.channel('data-changes')
+      .on('postgres_changes',{event:'*',schema:'public',table:'guests'},payload=>applyGuestChange(payload))
+      .on('postgres_changes',{event:'*',schema:'public',table:'spend'},()=>scheduleRefresh(true))
+      .subscribe();
+  }catch(e){}
+}
+// Merge the change into memory, then re-render (debounced so a bulk update
+// doesn't repaint 50 times).
+function applyGuestChange(p){
+  try{
+    if(p.eventType==='INSERT'){
+      if(!GUESTS.some(g=>g.id===p.new.id)) GUESTS.push(p.new);
+    } else if(p.eventType==='UPDATE'){
+      const i=GUESTS.findIndex(g=>g.id===p.new.id);
+      if(i>=0) GUESTS[i]=Object.assign({},GUESTS[i],p.new); else GUESTS.push(p.new);
+    } else if(p.eventType==='DELETE'){
+      GUESTS=GUESTS.filter(g=>g.id!==(p.old&&p.old.id));
+    }
+  }catch(e){}
+  scheduleRefresh();
+}
+function scheduleRefresh(reloadSpend){
+  if(_refreshTimer) clearTimeout(_refreshTimer);
+  _refreshTimer=setTimeout(async()=>{
+    if(reloadSpend&&LIVE){
+      try{ const {data}=await sb.from('spend').select('*'); if(data) SPEND=data; }catch(e){}
+    }
+    buildNav();
+    if(!document.querySelector('.modal-bg')) render();   // don't yank a modal from under someone
+  },600);
 }
 let _pendingSub=null;
 function subscribePending(){
@@ -593,7 +628,17 @@ function viewDash(){
     <div class="kpi k-teal"><div class="kpi-lbl">Collected (TZS)</div><div class="kpi-val">${money(t.paid)}</div><div class="kpi-sub pos">${pct}% of ${M(t.pledged)} pledged</div></div>
     <div class="kpi k-coral"><div class="kpi-lbl">Outstanding (TZS)</div><div class="kpi-val">${money(t.out)}</div><div class="kpi-sub">still to collect</div></div>
     <div class="kpi k-deep"><div class="kpi-lbl">Event budget</div><div class="kpi-val">${M(b.totalCost)}</div><div class="kpi-sub">total cost</div></div>
-    <div class="kpi k-butter"><div class="kpi-lbl">Funding gap</div><div class="kpi-val">${money(b.gapWorst)}</div><div class="kpi-sub neg">worst case (vs cash)</div></div>
+    <div class="kpi k-butter"><div class="kpi-lbl">Funding gap</div><div class="kpi-val">${money(Math.round(b.gapWorst))}</div><div class="kpi-sub neg">vs cash in hand · <b>all currencies</b></div></div>
+  </div>
+  <div class="panel" style="border-left:4px solid #C4A24C">
+    <div class="panel-h"><h3>All streams combined</h3><span class="sub">TZS-equivalent · Tanzania + Rwanda + diaspora</span></div>
+    <div class="hcard">
+      <div class="hc" style="border-left:4px solid #08D9D6"><div class="hc-v">${money(Math.round(b.paid))}</div><div class="hc-l">collected of ${money(Math.round(b.pledged))} pledged</div></div>
+      <div class="hc" style="border-left:4px solid #252A34"><div class="hc-v">${money(Math.round(b.totalCost))}</div><div class="hc-l">wedding cost</div></div>
+      <div class="hc" style="border-left:4px solid ${b.gapBest<=0?'#08D9D6':'#FF2E63'}"><div class="hc-v">${b.gapBest<=0?'covered ✓':money(Math.round(b.gapBest))}</div><div class="hc-l">${b.gapBest<=0?'if all pledges land':'gap if all pledges land'}</div></div>
+      <div class="hc" style="border-left:4px solid #FF2E63"><div class="hc-v">${money(Math.round(b.gapWorst))}</div><div class="hc-l">still to collect</div></div>
+    </div>
+    <p class="mini" style="margin-top:10px">Tanzania in TZS, Rwanda converted at ${FX.rwf.toFixed(2)} and USD at ${FX.usd.toFixed(0)} — rates on the <a onclick="go('exchange')" style="color:var(--teal);cursor:pointer;text-decoration:underline">Grand total</a> page. The two panels below show each side on its own.</p>
   </div>
   <div class="panel">
     <div class="panel-h"><h3>Tanzania collection progress <span class="sub" style="font-weight:400">· TZS</span></h3><span class="sub">${t.paidN} paid · ${t.partN} partial · ${t.pendN} awaiting</span></div>
