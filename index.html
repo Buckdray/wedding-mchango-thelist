@@ -346,7 +346,7 @@ function buildNav(){
     b.onclick=()=>go(n.id);
     nav.appendChild(b);
   });
-  document.getElementById('sbFoot').innerHTML=`<span id="sbCount">${(()=>{const c=countdownParts();return c?c.d+' days to go':'Today! 🎉';})()}</span><br>${GUESTS.length} guests · ${GUESTS.filter(isPledger).length} pledgers<br><span style="opacity:.45;font-size:10px">v20260811-1832</span>`;
+  document.getElementById('sbFoot').innerHTML=`<span id="sbCount">${(()=>{const c=countdownParts();return c?c.d+' days to go':'Today! 🎉';})()}</span><br>${GUESTS.length} guests · ${GUESTS.filter(isPledger).length} pledgers<br><span style="opacity:.45;font-size:10px">v20260811-1851</span>`;
 }
 function go(v){ curView=v; document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));
   buildNav();
@@ -699,7 +699,7 @@ function drawDashCharts(){ if(typeof Chart==="undefined"){["catChart","chanChart
       plugins:{legend:{position:'top',labels:{boxWidth:11,font:{size:11}}}}}}));
 }
 /* ===== CONTRIBUTORS ===== */
-let cFilter={q:'',cat:'',status:''};
+let cFilter={q:'',cat:'',status:'',handler:''};
 function viewContrib(){
   const cats=[...new Set(GUESTS.map(g=>g.category))].sort();
   let rows=GUESTS.filter(g=>isPledger(g)&&tzs(g));
@@ -707,6 +707,7 @@ function viewContrib(){
   if(cFilter.q){const q=cFilter.q.toLowerCase(); rows=rows.filter(g=>g.name.toLowerCase().includes(q));}
   if(cFilter.cat) rows=rows.filter(g=>g.category===cFilter.cat);
   if(cFilter.status) rows=rows.filter(g=>statusOf(g)===cFilter.status);
+  if(cFilter.handler) rows=rows.filter(g=>(g.handler||'—')===cFilter.handler);
   if(sortKey==='name'&&sortDir===1){ rows.sort((a,b)=>{const ao=a.sort_order??9999,bo=b.sort_order??9999; if(ao!==bo)return ao-bo; return a.name.toLowerCase()<b.name.toLowerCase()?-1:1;}); }
   else { rows.sort((a,b)=>{let x=a[sortKey],y=b[sortKey]; if(sortKey==='name'){x=x.toLowerCase();y=y.toLowerCase();} if(typeof x==='string')return x<y?-sortDir:x>y?sortDir:0; return (x-y)*sortDir;}); }
   const t=totals();
@@ -722,6 +723,8 @@ function viewContrib(){
       <input class="search" placeholder="Search name…" value="${esc(cFilter.q)}" oninput="searchInput(this,v=>cFilter.q=v)">
       <select onchange="cFilter.cat=this.value;render()"><option value="">All categories</option>${cats.map(c=>`<option ${cFilter.cat===c?'selected':''}>${esc(c)}</option>`).join('')}</select>
       <select onchange="cFilter.status=this.value;render()"><option value="">All statuses</option>${['paid','partial','pledged'].map(s=>`<option value="${s}" ${cFilter.status===s?'selected':''}>${s}</option>`).join('')}</select>
+      <select onchange="cFilter.handler=this.value;render()"><option value="">All handlers</option>${[...new Set(GUESTS.filter(g=>isPledger(g)&&tzs(g)).map(g=>g.handler||'—'))].sort().map(hd=>`<option value="${esc(hd)}" ${cFilter.handler===hd?'selected':''}>${hd==='—'?'— unassigned':esc(hd)}</option>`).join('')}</select>
+      ${(cFilter.q||cFilter.cat||cFilter.status||cFilter.handler)?`<button class="btn btn-ghost btn-sm" onclick="cFilter={q:'',cat:'',status:'',handler:''};render()">Clear filters</button>`:''}
       ${can.write()?`<button class="btn btn-primary btn-sm" onclick="openEdit()">+ Add contributor</button>`:''}
       <button class="btn btn-ghost btn-sm" onclick="exportCSV()">Export CSV</button>
     </div>
