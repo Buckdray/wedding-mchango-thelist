@@ -140,6 +140,15 @@ input,select{font-family:inherit}
   .tbl.budget-tbl th:nth-child(6),.tbl.budget-tbl td:nth-child(6){display:none}
   .tbl th,.tbl td{padding:9px 8px;font-size:13px}
   .cd-panel{padding:14px 16px}.cd-n{font-size:19px}.cd-u{min-width:52px;padding:7px 10px}}
+.att-group{display:inline-flex;gap:4px}
+.att-btn{border:1px solid var(--line);background:#fff;color:var(--muted);border-radius:7px;padding:3px 9px;font-size:12px;cursor:pointer;font-family:inherit;line-height:1.5}
+.att-btn:hover{border-color:var(--teal)}
+.att-btn.on.y{background:#08D9D6;border-color:#08D9D6;color:#252A34;font-weight:700}
+.att-btn.on.n{background:#FF2E63;border-color:#FF2E63;color:#fff;font-weight:700}
+.att-btn.on.m{background:#C4A24C;border-color:#C4A24C;color:#fff;font-weight:700}
+@media(max-width:680px){.tbl.guest-tbl th:nth-child(3),.tbl.guest-tbl td:nth-child(3),
+  .tbl.guest-tbl th:nth-child(4),.tbl.guest-tbl td:nth-child(4){display:none}}
+.num-hint{display:block;font-size:11.5px;color:var(--muted);margin-top:3px;min-height:14px}
 .lnk-edit{cursor:pointer;border-bottom:1px dashed var(--line)}
 .lnk-edit:hover{color:var(--teal);border-bottom-color:var(--teal)}
 </style>
@@ -346,7 +355,7 @@ function buildNav(){
     b.onclick=()=>go(n.id);
     nav.appendChild(b);
   });
-  document.getElementById('sbFoot').innerHTML=`<span id="sbCount">${(()=>{const c=countdownParts();return c?c.d+' days to go':'Today! 🎉';})()}</span><br>${GUESTS.length} guests · ${GUESTS.filter(isPledger).length} pledgers<br><span style="opacity:.45;font-size:10px">v20260811-1851</span>`;
+  document.getElementById('sbFoot').innerHTML=`<span id="sbCount">${(()=>{const c=countdownParts();return c?c.d+' days to go':'Today! 🎉';})()}</span><br>${GUESTS.length} guests · ${GUESTS.filter(isPledger).length} pledgers<br><span style="opacity:.45;font-size:10px">v20260814-0622</span>`;
 }
 function go(v){ curView=v; document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));
   buildNav();
@@ -487,6 +496,22 @@ function render(){
   if(curView==='budget') drawBudgetChart();
 }
 // Re-render while keeping focus + cursor in the active search box (fixes cursor-loss on typing)
+// Format money inputs with thousands separators as you type.
+function fmtNum(el){
+  const fromEnd = el.value.length - el.selectionStart;
+  const digits = el.value.replace(/[^0-9]/g,'');
+  el.value = digits ? Number(digits).toLocaleString('en-US') : '';
+  const pos = Math.max(0, el.value.length - fromEnd);
+  try{ el.setSelectionRange(pos,pos); }catch(e){}
+  const hint = el.parentElement.querySelector('.num-hint');
+  if(hint){
+    const n = digits?parseInt(digits,10):0;
+    hint.textContent = n>=1000000 ? (n/1000000).toFixed(n%1000000?1:0)+' milioni'
+                     : n>=1000    ? (n/1000).toFixed(n%1000?1:0)+' elfu' : '';
+  }
+}
+// Read a formatted input back as a plain integer.
+function numVal(id){ return parseInt((document.getElementById(id).value||'').replace(/[^0-9]/g,'')||'0',10); }
 function searchInput(el, assign){
   assign(el.value);
   const pos=el.selectionStart;
@@ -757,6 +782,15 @@ function setSort(k){ if(sortKey===k)sortDir*=-1; else{sortKey=k;sortDir=1;} rend
 
 /* ===== GUESTS ===== */
 let gFilter={q:'',cat:'',att:''};
+async function setAttending(id,val){
+  const g=GUESTS.find(x=>x.id===id); if(!g) return;
+  const next = (g.attending||'').trim()===val ? '' : val;   // tap again to clear
+  const prev = g.attending;
+  g.attending = next;
+  render();                                                  // instant feedback
+  try{ await saveGuest(Object.assign({},g)); }
+  catch(e){ g.attending=prev; render(); toast('Could not save: '+(e.message||e)); }
+}
 function viewGuests(){
   const cats=[...new Set(GUESTS.map(g=>g.category))].sort();
   let rows=GUESTS.slice();
@@ -771,22 +805,34 @@ function viewGuests(){
     <div class="kpi k-deep"><div class="kpi-lbl">Total guests</div><div class="kpi-val">${GUESTS.length}</div><div class="kpi-sub">${cats.length} categories</div></div>
     <div class="kpi k-teal"><div class="kpi-lbl">Attending</div><div class="kpi-val">${yes}</div><div class="kpi-sub pos">confirmed yes</div></div>
     <div class="kpi k-coral"><div class="kpi-lbl">Not attending</div><div class="kpi-val">${no}</div><div class="kpi-sub">declined / no</div></div>
-    <div class="kpi k-butter"><div class="kpi-lbl">Pledgers</div><div class="kpi-val">${GUESTS.filter(isPledger).length}</div><div class="kpi-sub">have pledged</div></div>
+    <div class="kpi k-butter"><div class="kpi-lbl">Not answered</div><div class="kpi-val">${GUESTS.filter(g=>!(g.attending||'').trim()).length}</div><div class="kpi-sub">no response yet</div></div>
   </div>
   <div class="panel">
     <div class="controls">
       <input class="search" placeholder="Search guest…" value="${esc(gFilter.q)}" oninput="searchInput(this,v=>gFilter.q=v)">
       <select onchange="gFilter.cat=this.value;render()"><option value="">All categories</option>${cats.map(c=>`<option ${gFilter.cat===c?'selected':''}>${esc(c)}</option>`).join('')}</select>
-      <select onchange="gFilter.att=this.value;render()"><option value="">Any attendance</option><option value="yes">Attending</option><option value="no">Not attending</option></select>
+      <select onchange="gFilter.att=this.value;render()"><option value="">Any attendance</option><option value="yes">Attending</option><option value="no">Not attending</option><option value="maybe">Maybe</option></select>
+      ${(gFilter.q||gFilter.cat||gFilter.att)?`<button class="btn btn-ghost btn-sm" onclick="gFilter={q:'',cat:'',att:''};render()">Clear</button>`:''}
+      ${can.write()?`<button class="btn btn-primary btn-sm" style="margin-left:auto" onclick="openEdit()">+ Add guest</button>`:''}
     </div>
+    <p class="mini" style="margin-bottom:10px">Tap <b>Yes / No / ?</b> to set attendance — it saves straight away. Tap a name to edit the full record.</p>
     <div style="overflow-x:auto">
-    <table class="tbl">
-      <thead><tr><th>Name</th><th>Category</th><th>Source</th><th>Handler</th><th>Attending</th><th>Status</th><th class="num">Pledged</th></tr></thead>
-      <tbody>${rows.map(g=>`<tr>
-        <td><b>${esc(g.name)}</b></td><td><span class="tag tag-cat">${esc(g.category)}</span></td>
-        <td class="muted">${esc(g.handler||'—')}</td><td class="muted">${esc(g.attending||'—')}</td>
-        <td class="muted">${esc(g.status||'—')}</td><td class="num">${(+g.pledged||0)?money(g.pledged):'<span class="muted">—</span>'}</td>
-      </tr>`).join('')}</tbody>
+    <table class="tbl guest-tbl">
+      <thead><tr><th>Name</th><th>Category</th><th>Source</th><th>Handler</th><th>Attending</th><th class="num">Pledged</th>${can.write()?'<th></th>':''}</tr></thead>
+      <tbody>${rows.map(g=>{
+        const att=(g.attending||'').trim();
+        const pill=(val,label,col)=>`<button class="att-btn ${att===val?'on '+col:''}" onclick="setAttending(${g.id},'${val}')" title="${label}">${label}</button>`;
+        return `<tr>
+        <td>${can.write()?`<b class="lnk-edit" onclick="openEdit(${g.id})">${esc(g.name)}</b>`:`<b>${esc(g.name)}</b>`}</td>
+        <td><span class="tag tag-cat">${esc(g.category||'—')}</span></td>
+        <td class="muted mini">${esc(g.source||'—')}</td>
+        <td class="muted">${esc(g.handler||'—')}</td>
+        <td>${can.write()
+            ? `<div class="att-group">${pill('Yes','Yes','y')}${pill('No','No','n')}${pill('Maybe','?','m')}</div>`
+            : `<span class="muted">${esc(att||'—')}</span>`}</td>
+        <td class="num">${(+g.pledged||0)?money(g.pledged):'<span class="muted">—</span>'}</td>
+        ${can.write()?`<td class="rt"><button class="btn btn-ghost btn-sm" onclick="openEdit(${g.id})">Edit</button></td>`:''}
+      </tr>`;}).join('')}</tbody>
     </table>
     </div>
   </div>`;
@@ -1465,9 +1511,9 @@ function openSpend(id){
       <div class="field"><label>Item</label><input id="sItem" value="${esc(s.item||'')}" placeholder="e.g. Chakula"></div>
       <div class="grid-2" style="gap:12px">
         <div class="field"><label>Currency</label><select id="sCur">${['TZS','USD','KES','RWF'].map(c=>`<option ${(s.currency||'TZS')===c?'selected':''}>${c}</option>`).join('')}</select></div>
-        <div class="field"><label>Budget</label><input id="sBud" type="number" value="${+s.budget||0}"></div>
+        <div class="field"><label>Budget</label><input id="sBud" type="text" inputmode="numeric" autocomplete="off" value="${(+s.budget||0).toLocaleString('en-US')}" oninput="fmtNum(this)"><span class="num-hint"></span></div>
       </div>
-      <div class="field"><label>Spent</label><input id="sSpent" type="number" value="${+s.spent||0}"></div>
+      <div class="field"><label>Spent</label><input id="sSpent" type="text" inputmode="numeric" autocomplete="off" value="${(+s.spent||0).toLocaleString('en-US')}" oninput="fmtNum(this)"><span class="num-hint"></span></div>
       <p class="mini" style="margin-top:-4px">Tip: the item containing "Total" or "Damage" sets the overall event cost shown on the dashboard.</p>
       <div class="modal-foot">
         ${id?`<button class="btn btn-ghost" style="color:var(--coral)" onclick="removeSpend(${id})">Delete</button>`:'<span></span>'}
@@ -1482,8 +1528,8 @@ function openSpend(id){
 async function saveSpendEdit(id){
   const item=(document.getElementById('sItem').value||'').trim();
   if(!item){ toast('Enter an item name'); return; }
-  const s={ item, budget:+document.getElementById('sBud').value||0,
-            spent:+document.getElementById('sSpent').value||0,
+  const s={ item, budget:numVal('sBud'),
+            spent:numVal('sSpent'),
             currency:document.getElementById('sCur').value };
   if(id) s.id=id;
   try{ await saveSpend(s); closeModal(); render(); toast('Budget item saved'); }
@@ -1513,8 +1559,8 @@ function openEdit(id){
         <div class="field"><label>Currency</label><select id="eCur"><option ${(g.currency||'TZS')==='TZS'?'selected':''}>TZS</option><option ${g.currency==='RWF'?'selected':''}>RWF</option><option ${g.currency==='USD'?'selected':''}>USD</option></select></div>
       </div>
       <div class="grid-2" style="gap:12px">
-        <div class="field"><label>Pledged</label><input id="ePl" type="number" value="${+g.pledged||0}"></div>
-        <div class="field"><label>Paid</label><input id="ePd" type="number" value="${+g.paid||0}"></div>
+        <div class="field"><label>Pledged</label><input id="ePl" type="text" inputmode="numeric" autocomplete="off" value="${(+g.pledged||0).toLocaleString('en-US')}" oninput="fmtNum(this)"><span class="num-hint"></span></div>
+        <div class="field"><label>Paid</label><input id="ePd" type="text" inputmode="numeric" autocomplete="off" value="${(+g.paid||0).toLocaleString('en-US')}" oninput="fmtNum(this)"><span class="num-hint"></span></div>
       </div>
       <div class="grid-2" style="gap:12px">
         <div class="field"><label>Channel <small class="mini">(On-hand = held by handler)</small></label><select id="eCh"><option value="">—</option>${['On-hand','MTN Momo','CRDB','Stanbic','Voda','Selcom','Mixx'].map(c=>`<option ${g.channel===c?'selected':''}>${c}</option>`).join('')}</select></div>
@@ -1531,8 +1577,8 @@ function openEdit(id){
 function closeModal(){ document.getElementById('modalHost').innerHTML=''; }
 async function saveEdit(id){
   const g={ name:document.getElementById('eName').value.trim(), category:document.getElementById('eCat').value.trim()||'Uncategorized',
-    handler:document.getElementById('eHand').value, pledged:+document.getElementById('ePl').value||0,
-    paid:+document.getElementById('ePd').value||0, channel:document.getElementById('eCh').value, attending:document.getElementById('eAtt').value.trim(), source:document.getElementById('eSrc').value, currency:document.getElementById('eCur').value };
+    handler:document.getElementById('eHand').value, pledged:numVal('ePl'),
+    paid:numVal('ePd'), channel:document.getElementById('eCh').value, attending:document.getElementById('eAtt').value.trim(), source:document.getElementById('eSrc').value, currency:document.getElementById('eCur').value };
   if(!g.name){ toast('Name required'); return; }
   if(g.paid>g.pledged) g.paid=g.pledged;
   if(id) g.id=id;
