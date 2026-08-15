@@ -147,7 +147,8 @@ input,select{font-family:inherit}
 .att-btn.on.n{background:#FF2E63;border-color:#FF2E63;color:#fff;font-weight:700}
 .att-btn.on.m{background:#C4A24C;border-color:#C4A24C;color:#fff;font-weight:700}
 @media(max-width:680px){.tbl.guest-tbl th:nth-child(3),.tbl.guest-tbl td:nth-child(3),
-  .tbl.guest-tbl th:nth-child(4),.tbl.guest-tbl td:nth-child(4){display:none}}
+  .tbl.guest-tbl th:nth-child(4),.tbl.guest-tbl td:nth-child(4),
+  .tbl.guest-tbl th:nth-child(7),.tbl.guest-tbl td:nth-child(7){display:none}}
 .num-hint{display:block;font-size:11.5px;color:var(--muted);margin-top:3px;min-height:14px}
 .lnk-edit{cursor:pointer;border-bottom:1px dashed var(--line)}
 .lnk-edit:hover{color:var(--teal);border-bottom-color:var(--teal)}
@@ -781,7 +782,7 @@ function viewContrib(){
 function setSort(k){ if(sortKey===k)sortDir*=-1; else{sortKey=k;sortDir=1;} render(); }
 
 /* ===== GUESTS ===== */
-let gFilter={q:'',cat:'',att:''};
+let gFilter={q:'',cat:'',att:'',pay:''};
 async function setAttending(id,val){
   const g=GUESTS.find(x=>x.id===id); if(!g) return;
   const next = (g.attending||'').trim()===val ? '' : val;   // tap again to clear
@@ -797,6 +798,12 @@ function viewGuests(){
   if(gFilter.q){const q=gFilter.q.toLowerCase(); rows=rows.filter(g=>g.name.toLowerCase().includes(q));}
   if(gFilter.cat) rows=rows.filter(g=>g.category===gFilter.cat);
   if(gFilter.att) rows=rows.filter(g=>(g.attending||'').toLowerCase().includes(gFilter.att.toLowerCase()));
+  if(gFilter.pay) rows=rows.filter(g=>{const pl=+g.pledged||0,pd=+g.paid||0;
+    if(gFilter.pay==='nopledge') return !pl;
+    if(gFilter.pay==='complete') return pl>0&&pd>=pl;
+    if(gFilter.pay==='partial')  return pl>0&&pd>0&&pd<pl;
+    if(gFilter.pay==='none')     return pl>0&&pd===0;
+    return true;});
   rows.sort((a,b)=>a.name.toLowerCase()<b.name.toLowerCase()?-1:1);
   const yes=GUESTS.filter(g=>/yes/i.test(g.attending)).length;
   const no=GUESTS.filter(g=>/no/i.test(g.attending)&&!/yes/i.test(g.attending)).length;
@@ -805,20 +812,21 @@ function viewGuests(){
     <div class="kpi k-deep"><div class="kpi-lbl">Total guests</div><div class="kpi-val">${GUESTS.length}</div><div class="kpi-sub">${cats.length} categories</div></div>
     <div class="kpi k-teal"><div class="kpi-lbl">Attending</div><div class="kpi-val">${yes}</div><div class="kpi-sub pos">confirmed yes</div></div>
     <div class="kpi k-coral"><div class="kpi-lbl">Not attending</div><div class="kpi-val">${no}</div><div class="kpi-sub">declined / no</div></div>
-    <div class="kpi k-butter"><div class="kpi-lbl">Not answered</div><div class="kpi-val">${GUESTS.filter(g=>!(g.attending||'').trim()).length}</div><div class="kpi-sub">no response yet</div></div>
+    <div class="kpi k-butter"><div class="kpi-lbl">Contribution complete</div><div class="kpi-val">${GUESTS.filter(g=>(+g.pledged||0)>0&&(+g.paid||0)>=(+g.pledged||0)).length}</div><div class="kpi-sub">of ${GUESTS.filter(isPledger).length} pledgers</div></div>
   </div>
   <div class="panel">
     <div class="controls">
       <input class="search" placeholder="Search guest…" value="${esc(gFilter.q)}" oninput="searchInput(this,v=>gFilter.q=v)">
       <select onchange="gFilter.cat=this.value;render()"><option value="">All categories</option>${cats.map(c=>`<option ${gFilter.cat===c?'selected':''}>${esc(c)}</option>`).join('')}</select>
       <select onchange="gFilter.att=this.value;render()"><option value="">Any attendance</option><option value="yes">Attending</option><option value="no">Not attending</option><option value="maybe">Maybe</option></select>
-      ${(gFilter.q||gFilter.cat||gFilter.att)?`<button class="btn btn-ghost btn-sm" onclick="gFilter={q:'',cat:'',att:''};render()">Clear</button>`:''}
+      <select onchange="gFilter.pay=this.value;render()"><option value="">Any contribution</option><option value="complete" ${gFilter.pay==='complete'?'selected':''}>Complete</option><option value="partial" ${gFilter.pay==='partial'?'selected':''}>Part-paid</option><option value="none" ${gFilter.pay==='none'?'selected':''}>Not started</option><option value="nopledge" ${gFilter.pay==='nopledge'?'selected':''}>No pledge</option></select>
+      ${(gFilter.q||gFilter.cat||gFilter.att)?`<button class="btn btn-ghost btn-sm" onclick="gFilter={q:'',cat:'',att:'',pay:''};render()">Clear</button>`:''}
       ${can.write()?`<button class="btn btn-primary btn-sm" style="margin-left:auto" onclick="openEdit()">+ Add guest</button>`:''}
     </div>
     <p class="mini" style="margin-bottom:10px">Tap <b>Yes / No / ?</b> to set attendance — it saves straight away. Tap a name to edit the full record.</p>
     <div style="overflow-x:auto">
     <table class="tbl guest-tbl">
-      <thead><tr><th>Name</th><th>Category</th><th>Source</th><th>Handler</th><th>Attending</th><th class="num">Pledged</th>${can.write()?'<th></th>':''}</tr></thead>
+      <thead><tr><th>Name</th><th>Category</th><th>Source</th><th>Handler</th><th>Attending</th><th class="num">Pledged</th><th class="num">Paid</th><th>Contribution</th>${can.write()?'<th></th>':''}</tr></thead>
       <tbody>${rows.map(g=>{
         const att=(g.attending||'').trim();
         const pill=(val,label,col)=>`<button class="att-btn ${att===val?'on '+col:''}" onclick="setAttending(${g.id},'${val}')" title="${label}">${label}</button>`;
@@ -831,6 +839,15 @@ function viewGuests(){
             ? `<div class="att-group">${pill('Yes','Yes','y')}${pill('No','No','n')}${pill('Maybe','?','m')}</div>`
             : `<span class="muted">${esc(att||'—')}</span>`}</td>
         <td class="num">${(+g.pledged||0)?money(g.pledged):'<span class="muted">—</span>'}</td>
+        <td class="num muted">${(+g.paid||0)?money(g.paid):'<span class="muted">—</span>'}</td>
+        <td>${(()=>{
+          const pl=+g.pledged||0, pd=+g.paid||0;
+          if(!pl) return '<span class="muted mini">no pledge</span>';
+          if(pd>=pl) return '<span class="tag tag-paid">complete ✅</span>';
+          if(pd>0){const pc=Math.round(pd/pl*100);
+            return `<span class="tag tag-partial">${pc}% · ${money(pl-pd)} left</span>`;}
+          return '<span class="tag tag-pledged">not started</span>';
+        })()}</td>
         ${can.write()?`<td class="rt"><button class="btn btn-ghost btn-sm" onclick="openEdit(${g.id})">Edit</button></td>`:''}
       </tr>`;}).join('')}</tbody>
     </table>
