@@ -356,7 +356,7 @@ function buildNav(){
     b.onclick=()=>go(n.id);
     nav.appendChild(b);
   });
-  document.getElementById('sbFoot').innerHTML=`<span id="sbCount">${(()=>{const c=countdownParts();return c?c.d+' days to go':'Today! 🎉';})()}</span><br>${GUESTS.length} guests · ${GUESTS.filter(isPledger).length} pledgers<br><span style="opacity:.45;font-size:10px">v20260814-0622</span>`;
+  document.getElementById('sbFoot').innerHTML=`<span id="sbCount">${(()=>{const c=countdownParts();return c?c.d+' days to go':'Today! 🎉';})()}</span><br>${GUESTS.length} guests · ${GUESTS.filter(isPledger).length} pledgers<br><span style="opacity:.45;font-size:10px">v20260817-0940</span>`;
 }
 function go(v){ curView=v; document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));
   buildNav();
@@ -574,6 +574,18 @@ function fundingAllCurrencies(){
     paid:    tz.paid    + rw.paid*FX.rwf    + us.paid*FX.usd
   };
 }
+// A negative gap is a surplus — show it as such rather than a minus sign.
+function gapCard(v,{gapLabel,surplusLabel,gapSub,surplusSub}){
+  const surplus = v<=0;
+  return {
+    label: surplus?surplusLabel:gapLabel,
+    value: money(Math.abs(Math.round(v))),
+    sub:   surplus?surplusSub:gapSub,
+    cls:   surplus?'pos':'neg',
+    accent: surplus?'k-teal':'k-coral',
+    surplus
+  };
+}
 function budgetTotals(){
   const wed=SPEND.filter(isWeddingItem);
   const summed=wed.reduce((a,x)=>a+(+x.budget||0),0);
@@ -654,7 +666,8 @@ function viewDash(){
     <div class="kpi k-teal"><div class="kpi-lbl">Collected (TZS)</div><div class="kpi-val">${money(t.paid)}</div><div class="kpi-sub pos">${pct}% of ${M(t.pledged)} pledged</div></div>
     <div class="kpi k-coral"><div class="kpi-lbl">Outstanding (TZS)</div><div class="kpi-val">${money(t.out)}</div><div class="kpi-sub">still to collect</div></div>
     <div class="kpi k-deep"><div class="kpi-lbl">Event budget</div><div class="kpi-val">${M(b.totalCost)}</div><div class="kpi-sub">total cost</div></div>
-    <div class="kpi k-butter"><div class="kpi-lbl">Funding gap</div><div class="kpi-val">${money(Math.round(b.gapWorst))}</div><div class="kpi-sub neg">vs cash in hand · <b>all currencies</b></div></div>
+    ${(()=>{const c=gapCard(b.gapWorst,{gapLabel:'Funding gap',surplusLabel:'Surplus',gapSub:'still to collect · <b>all currencies</b>',surplusSub:'above the bill · <b>all currencies</b>'});
+      return `<div class="kpi ${c.accent}"><div class="kpi-lbl">${c.label}</div><div class="kpi-val">${c.value}</div><div class="kpi-sub ${c.cls}">${c.sub}</div></div>`;})()}
   </div>
   <div class="panel" style="border-left:4px solid #C4A24C">
     <div class="panel-h"><h3>All streams combined</h3><span class="sub">TZS-equivalent · Tanzania + Rwanda + diaspora</span></div>
@@ -662,7 +675,7 @@ function viewDash(){
       <div class="hc" style="border-left:4px solid #08D9D6"><div class="hc-v">${money(Math.round(b.paid))}</div><div class="hc-l">collected of ${money(Math.round(b.pledged))} pledged</div></div>
       <div class="hc" style="border-left:4px solid #252A34"><div class="hc-v">${money(Math.round(b.totalCost))}</div><div class="hc-l">wedding cost</div></div>
       <div class="hc" style="border-left:4px solid ${b.gapBest<=0?'#08D9D6':'#FF2E63'}"><div class="hc-v">${b.gapBest<=0?'covered ✓':money(Math.round(b.gapBest))}</div><div class="hc-l">${b.gapBest<=0?'if all pledges land':'gap if all pledges land'}</div></div>
-      <div class="hc" style="border-left:4px solid #FF2E63"><div class="hc-v">${money(Math.round(b.gapWorst))}</div><div class="hc-l">still to collect</div></div>
+      <div class="hc" style="border-left:4px solid ${b.gapWorst<=0?'#08D9D6':'#FF2E63'}"><div class="hc-v">${b.gapWorst<=0?money(Math.abs(Math.round(b.gapWorst))):money(Math.round(b.gapWorst))}</div><div class="hc-l">${b.gapWorst<=0?'surplus on cash in hand':'still to collect'}</div></div>
     </div>
     <p class="mini" style="margin-top:10px">Tanzania in TZS, Rwanda converted at ${FX.rwf.toFixed(2)} and USD at ${FX.usd.toFixed(0)} — rates on the <a onclick="go('exchange')" style="color:var(--teal);cursor:pointer;text-decoration:underline">Grand total</a> page. The two panels below show each side on its own.</p>
   </div>
@@ -977,8 +990,10 @@ function viewBudget(){
   <div class="kpi-row">
     <div class="kpi k-deep"><div class="kpi-lbl">Total event cost</div><div class="kpi-val">${money(b.totalCost)}</div><div class="kpi-sub">${b.eventItems} wedding items · ${money(b.eventSpent)} spent</div></div>
     <div class="kpi k-teal"><div class="kpi-lbl">Pledged so far</div><div class="kpi-val">${money(Math.round(b.pledged))}</div><div class="kpi-sub">${Math.round(b.pledged/b.totalCost*100)}% of cost · all currencies</div></div>
-    <div class="kpi k-coral"><div class="kpi-lbl">Gap (best case)</div><div class="kpi-val">${money(Math.round(b.gapBest))}</div><div class="kpi-sub">if all pledges land</div></div>
-    <div class="kpi k-butter"><div class="kpi-lbl">Gap (worst case)</div><div class="kpi-val">${money(b.gapWorst)}</div><div class="kpi-sub neg">on cash in hand</div></div>
+    ${(()=>{const c=gapCard(b.gapBest,{gapLabel:'Gap (best case)',surplusLabel:'Surplus (best case)',gapSub:'if all pledges land',surplusSub:'over, if all pledges land'});
+      return `<div class="kpi ${c.accent}"><div class="kpi-lbl">${c.label}</div><div class="kpi-val">${c.value}</div><div class="kpi-sub ${c.cls}">${c.sub}</div></div>`;})()}
+    ${(()=>{const c=gapCard(b.gapWorst,{gapLabel:'Gap (worst case)',surplusLabel:'Surplus (cash in hand)',gapSub:'on cash in hand',surplusSub:'over, on cash already banked'});
+      return `<div class="kpi ${c.accent}"><div class="kpi-lbl">${c.label}</div><div class="kpi-val">${c.value}</div><div class="kpi-sub ${c.cls}">${c.sub}</div></div>`;})()}
   </div>
   ${(()=>{
     const byCur={};
@@ -1246,15 +1261,21 @@ function viewInsights(){
 
   return `
   <div class="kpi-row">
-    <div class="kpi k-coral"><div class="kpi-lbl">Still to raise</div><div class="kpi-val">${money(gap)}</div><div class="kpi-sub">to cover ${M(b.totalCost)} event cost</div></div>
-    <div class="kpi k-butter"><div class="kpi-lbl">Needed per day</div><div class="kpi-val">${money(Math.round(perDay))}</div><div class="kpi-sub">${days} days to the wedding</div></div>
+    ${(()=>{const raw=b.totalCost-b.paid;const c=gapCard(raw,{gapLabel:'Still to raise',surplusLabel:'Fully funded — surplus',gapSub:`to cover ${M(b.totalCost)} event cost`,surplusSub:`above the ${M(b.totalCost)} event cost`});
+      return `<div class="kpi ${c.accent}"><div class="kpi-lbl">${c.label}</div><div class="kpi-val">${c.value}</div><div class="kpi-sub ${c.cls}">${c.sub}</div></div>`;})()}
+    ${gap>0
+      ? `<div class="kpi k-butter"><div class="kpi-lbl">Needed per day</div><div class="kpi-val">${money(Math.round(perDay))}</div><div class="kpi-sub">${days} days to the wedding</div></div>`
+      : `<div class="kpi k-teal"><div class="kpi-lbl">Days to the wedding</div><div class="kpi-val">${days}</div><div class="kpi-sub pos">cost already covered</div></div>`}
     <div class="kpi k-teal"><div class="kpi-lbl">Pledged not yet paid</div><div class="kpi-val">${money(t.out)}</div><div class="kpi-sub">${owing.length} people owing</div></div>
     <div class="kpi k-deep"><div class="kpi-lbl">Top 12 owing</div><div class="kpi-val">${pctFromTop}%</div><div class="kpi-sub">of all outstanding money</div></div>
   </div>
 
-  <div class="banner"><span>◔</span><div>${gap>t.out
-      ? `Even if <b>every</b> pledge is paid, you'd still be ${money(gap-t.out)} short of the ${M(b.totalCost)} event cost — new pledges are needed, not just collections.`
-      : `If everyone who has pledged pays up, you'll cover the event cost with ${money(t.out-gap)} to spare. The task is collection, not fundraising.`}</div></div>
+  <div class="banner" ${b.totalCost-b.paid<=0?'style="background:#D6F7F6;border-color:#08D9D6"':''}><div>${
+    (b.totalCost-b.paid)<=0
+      ? `<b>The wedding is fully funded from cash already collected</b>, with ${money(Math.abs(Math.round(b.totalCost-b.paid)))} to spare. Outstanding pledges below are now a bonus, not a necessity — follow up gently, or not at all.`
+      : (gap>t.out
+        ? `Even if <b>every</b> pledge is paid, you'd still be ${money(gap-t.out)} short of the ${M(b.totalCost)} event cost — new pledges are needed, not just collections.`
+        : `If everyone who has pledged pays up, you'll cover the event cost with ${money(t.out-gap)} to spare. The task is collection, not fundraising.`)}</div></div>
 
   <div class="panel">
     <div class="panel-h"><h3>Chase list — biggest amounts outstanding</h3><span class="sub">${pctFromTop}% of what's owed sits with these ${top.length}</span></div>
