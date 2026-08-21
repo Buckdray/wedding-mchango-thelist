@@ -356,7 +356,7 @@ function buildNav(){
     b.onclick=()=>go(n.id);
     nav.appendChild(b);
   });
-  document.getElementById('sbFoot').innerHTML=`<span id="sbCount">${(()=>{const c=countdownParts();return c?c.d+' days to go':'Today! 🎉';})()}</span><br>${GUESTS.length} guests · ${GUESTS.filter(isPledger).length} pledgers<br><span style="opacity:.45;font-size:10px">v20260817-0940</span>`;
+  document.getElementById('sbFoot').innerHTML=`<span id="sbCount">${(()=>{const c=countdownParts();return c?c.d+' days to go':'Today! 🎉';})()}</span><br>${GUESTS.length} guests · ${GUESTS.filter(isPledger).length} pledgers<br><span style="opacity:.45;font-size:10px">v20260821-1003</span>`;
 }
 function go(v){ curView=v; document.querySelectorAll('.nav-item').forEach(x=>x.classList.remove('active'));
   buildNav();
@@ -614,7 +614,7 @@ function byHandler(){
 }
 
 /* ===== DASHBOARD ===== */
-const WEDDING_DATE = new Date('2026-08-22T10:00:00+03:00');   // 22 Aug 2026, EAT
+const WEDDING_DATE = new Date('2026-08-22T12:00:00+03:00');   // 22 Aug 2026, 12:00 noon EAT — church wedding
 function countdownParts(){
   const ms = WEDDING_DATE - new Date();
   if(ms<=0) return null;
@@ -1233,7 +1233,7 @@ function viewInsights(){
   const t=totals(), b=budgetTotals();
   const cd=countdownParts();
   const days=cd?Math.max(cd.d,1):1;
-  const gap=Math.max(b.totalCost-t.paid,0);
+  const gap=Math.max(b.totalCost-b.paid,0);
   const perDay=gap/days;
 
   // everyone who still owes, biggest first — this is the chase list
